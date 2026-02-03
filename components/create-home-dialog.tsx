@@ -18,7 +18,6 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 interface CreateHomeDialogProps {
-  userId: string;
   onHomeCreated?: (homeId: string) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -26,7 +25,6 @@ interface CreateHomeDialogProps {
 }
 
 export function CreateHomeDialog({
-  userId,
   onHomeCreated,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -45,7 +43,7 @@ export function CreateHomeDialog({
     if (!name.trim()) return;
 
     try {
-      const homeId = await createHome({ name, userId });
+      const homeId = await createHome({ name });
       toast.success("Home created successfully!");
       setOpen(false);
       setName("");

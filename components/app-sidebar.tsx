@@ -90,31 +90,19 @@ const categories = [
 ];
 
 export function AppSidebar() {
-  const [userId, setUserId] = useState<string>("");
+  /* Removed legacy auth state */
   const [createHomeOpen, setCreateHomeOpen] = useState(false);
   const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let id = localStorage.getItem("homekit_user_id");
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem("homekit_user_id", id);
-    }
-    setUserId(id);
+  /* Removed legacy useEffect for userId */
 
-    const savedHomeId = localStorage.getItem("homekit_selected_home_id");
-    if (savedHomeId) {
-      setSelectedHomeId(savedHomeId);
-    }
-  }, []);
-
-  const homes = useQuery(api.homes.getHomes, userId ? { userId } : "skip");
+  const homes = useQuery(api.homes.getHomes);
 
   useEffect(() => {
     if (homes && homes.length > 0 && !selectedHomeId) {
       const firstHome = homes[0];
       setSelectedHomeId(firstHome._id);
-      localStorage.setItem("homekit_selected_home_id", firstHome._id);
+      // We can persist selection if needed, but for now simple default.
     }
   }, [homes, selectedHomeId]);
 
@@ -242,7 +230,6 @@ export function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
       <CreateHomeDialog
-        userId={userId}
         open={createHomeOpen}
         onOpenChange={setCreateHomeOpen}
         onHomeCreated={(id) => handleHomeChange(id)}
