@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ChevronsUpDown,
+  Check,
   Calendar,
   Home,
   Plus,
@@ -12,6 +14,19 @@ import {
   Camera,
   Speaker,
 } from "lucide-react";
+
+import { useState, useEffect } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CreateHomeDialog } from "@/components/create-home-dialog";
 
 import {
   Sidebar,
@@ -75,22 +90,105 @@ const categories = [
 ];
 
 export function AppSidebar() {
+  const [userId, setUserId] = useState<string>("");
+  const [createHomeOpen, setCreateHomeOpen] = useState(false);
+  const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let id = localStorage.getItem("homekit_user_id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("homekit_user_id", id);
+    }
+    setUserId(id);
+
+    const savedHomeId = localStorage.getItem("homekit_selected_home_id");
+    if (savedHomeId) {
+      setSelectedHomeId(savedHomeId);
+    }
+  }, []);
+
+  const homes = useQuery(api.homes.getHomes, userId ? { userId } : "skip");
+
+  useEffect(() => {
+    if (homes && homes.length > 0 && !selectedHomeId) {
+      const firstHome = homes[0];
+      setSelectedHomeId(firstHome._id);
+      localStorage.setItem("homekit_selected_home_id", firstHome._id);
+    }
+  }, [homes, selectedHomeId]);
+
+  const handleHomeChange = (homeId: string) => {
+    setSelectedHomeId(homeId);
+    localStorage.setItem("homekit_selected_home_id", homeId);
+  };
+
+  const selectedHome =
+    homes?.find((h) => h._id === selectedHomeId) || homes?.[0];
+
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <a href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-indigo-600 text-sidebar-primary-foreground">
-                  <Home className="size-4" />
-                </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">Smart Home</span>
-                  <span className="">v1.0.0</span>
-                </div>
-              </a>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                >
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-indigo-600 text-sidebar-primary-foreground">
+                    <Home className="size-4" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">
+                      {selectedHome ? selectedHome.name : "Smart Home"}
+                    </span>
+                    <span className="truncate text-xs">
+                      {!selectedHome && "No Home Selected"}
+                    </span>
+                  </div>
+                  <ChevronsUpDown className="ml-auto" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                align="start"
+                side="bottom"
+                sideOffset={4}
+              >
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Homes
+                </DropdownMenuLabel>
+                {homes?.map((home) => (
+                  <DropdownMenuItem
+                    key={home._id}
+                    onClick={() => handleHomeChange(home._id)}
+                    className="gap-2 p-2"
+                  >
+                    <div className="flex size-6 items-center justify-center rounded-sm border">
+                      <Home className="size-4 shrink-0" />
+                    </div>
+                    {home.name}
+                    {selectedHome?._id === home._id && (
+                      <Check className="ml-auto" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="gap-2 p-2"
+                  onClick={() => setCreateHomeOpen(true)}
+                >
+                  <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                    <Plus className="size-4" />
+                  </div>
+                  <div className="font-medium text-muted-foreground">
+                    Add Home
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -143,6 +241,12 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
+      <CreateHomeDialog
+        userId={userId}
+        open={createHomeOpen}
+        onOpenChange={setCreateHomeOpen}
+        onHomeCreated={(id) => handleHomeChange(id)}
+      />
     </Sidebar>
   );
 }
