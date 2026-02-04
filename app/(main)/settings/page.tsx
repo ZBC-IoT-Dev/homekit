@@ -4,75 +4,74 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { HomeDetails } from "@/components/settings/home-details";
 import { MembersList } from "@/components/settings/members-list";
-
+import { GatewaysList } from "@/components/settings/gateways-list";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Settings, Users, Router } from "lucide-react";
 
 export default function SettingsPage() {
   const home = useQuery(api.homes.getHome);
 
   if (!home) {
     return (
-      <div className="flex flex-1 flex-col gap-8 p-8 max-w-4xl mx-auto w-full">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-9 w-32" />
+      <div className="flex flex-1 flex-col gap-4 p-6 md:p-8 max-w-4xl mx-auto w-full">
+        <div className="space-y-1">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-4 w-48" />
         </div>
-        <div className="grid gap-8">
-          <div className="grid gap-8 md:grid-cols-2">
-            <Card>
-              <CardHeader className="gap-2">
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-4 w-48" />
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="gap-2">
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-4 w-48" />
-              </CardHeader>
-              <CardContent className="space-y-4 p-6">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="space-y-1 flex-1">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-3 w-32" />
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <Skeleton className="h-[300px] w-full rounded-lg" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-8 p-8 max-w-4xl mx-auto w-full">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+    <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 max-w-4xl mx-auto w-full animate-in fade-in duration-500">
+      <div className="space-y-0.5">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Settings
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Manage your home environment and members.
+        </p>
       </div>
-      <div className="grid gap-8">
-        <div className="grid gap-8 md:grid-cols-2">
-          <div className="space-y-6">
-            <HomeDetails home={home} />
-          </div>
-          <div className="space-y-6">
-            <MembersList homeId={home._id} />
-          </div>
-        </div>
-      </div>
+
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="h-9 p-0.5 bg-transparent border-b border-border/50 rounded-none w-full justify-start gap-4 mb-6">
+          <TabsTrigger
+            value="general"
+            className="h-8 px-2 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-all gap-1.5"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            General
+          </TabsTrigger>
+          <TabsTrigger
+            value="members"
+            className="h-8 px-2 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-all gap-1.5"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Members
+          </TabsTrigger>
+          <TabsTrigger
+            value="gateways"
+            className="h-8 px-2 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-all gap-1.5"
+          >
+            <Router className="h-3.5 w-3.5" />
+            Gateways
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general" className="mt-0 outline-none">
+          <HomeDetails home={home} />
+        </TabsContent>
+
+        <TabsContent value="members" className="mt-0 outline-none">
+          <MembersList homeId={home._id} />
+        </TabsContent>
+
+        <TabsContent value="gateways" className="mt-0 outline-none">
+          <GatewaysList homeId={home._id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
