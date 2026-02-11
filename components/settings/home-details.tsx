@@ -49,9 +49,9 @@ export function HomeDetails({ home }: { home: HomeDetailsHome }) {
     setLoading(true);
     try {
       await updateHome({ id: home._id, name, address });
-      toast.success("Home updated");
+      toast.success("Hjem opdateret");
     } catch {
-      toast.error("Failed to update home");
+      toast.error("Kunne ikke opdatere hjem");
     } finally {
       setLoading(false);
     }
@@ -60,17 +60,17 @@ export function HomeDetails({ home }: { home: HomeDetailsHome }) {
   const handleDelete = async () => {
     try {
       await deleteHome({ id: home._id });
-      toast.success("Home deleted");
+      toast.success("Hjem slettet");
       router.push("/");
     } catch {
-      toast.error("Failed to delete home");
+      toast.error("Kunne ikke slette hjem");
     }
   };
 
   const copyInviteCode = () => {
     navigator.clipboard.writeText(home.inviteCode);
     setCopied(true);
-    toast.success("Copied to clipboard");
+    toast.success("Kopieret til udklipsholder");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -78,41 +78,41 @@ export function HomeDetails({ home }: { home: HomeDetailsHome }) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>General</CardTitle>
+          <CardTitle>Generelt</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="name" className="text-sm font-medium">
-                  Home Name
+                  Hjemmenavn
                 </Label>
                 <Input
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="h-10"
-                  placeholder="e.g. My Smart Home"
+                  placeholder="f.eks. Mit smarte hjem"
                 />
               </div>
 
               <div className="grid gap-2">
                 <Label htmlFor="address" className="text-sm font-medium">
-                  Address
+                  Adresse
                 </Label>
                 <Input
                   id="address"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   className="h-10"
-                  placeholder="123 Smart St, Tech City"
+                  placeholder="Smartvej 123, Teknikby"
                 />
               </div>
 
               <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/40 p-4">
                 <div className="space-y-0.5">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Invite Code
+                    Invitationskode
                   </p>
                   <code className="text-base font-mono font-semibold">
                     {home.inviteCode}
@@ -130,7 +130,7 @@ export function HomeDetails({ home }: { home: HomeDetailsHome }) {
                   ) : (
                     <Copy className="h-3.5 w-3.5" />
                   )}
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? "Kopieret" : "Kopier"}
                 </Button>
               </div>
             </div>
@@ -144,24 +144,24 @@ export function HomeDetails({ home }: { home: HomeDetailsHome }) {
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Home
+                    Slet hjem
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete {home.name} and all its
-                      devices.
+                      Dette vil permanent slette {home.name} og alle dets
+                      enheder.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>Annuller</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDelete}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      Delete
+                      Slet
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -173,7 +173,7 @@ export function HomeDetails({ home }: { home: HomeDetailsHome }) {
                 size="sm"
                 className="h-10 px-6"
               >
-                {loading ? "Saving..." : "Save Changes"}
+                {loading ? "Gemmer..." : "Gem ændringer"}
               </Button>
             </div>
           </form>

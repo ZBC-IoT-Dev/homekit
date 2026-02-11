@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Wifi, XCircle, Activity, MoreVertical } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { da } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -28,7 +29,7 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
   };
 
   const handleReject = async (gatewayId: Id<"gateways">) => {
-    if (confirm("Remove gateway?")) {
+    if (confirm("Fjern gateway?")) {
       await removeGateway({ gatewayId });
     }
   };
@@ -39,7 +40,9 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
       {gateways.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <Wifi className="h-6 w-6 mb-2" />
-          <p className="text-sm text-muted-foreground">No gateways connected</p>
+          <p className="text-sm text-muted-foreground">
+            Ingen gateways tilsluttet
+          </p>
         </div>
       ) : (
         <div className="divide-y">
@@ -65,13 +68,16 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
                     <h4 className="font-medium text-sm">{gateway.name}</h4>
                     {gateway.status === "pending" && (
                       <Badge variant="secondary">
-                        Pending
+                        Afventer
                       </Badge>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {gateway.type || "Gateway"} •{" "}
-                    {formatDistanceToNow(gateway.lastSeen)} ago
+                    {formatDistanceToNow(gateway.lastSeen, {
+                      addSuffix: true,
+                      locale: da,
+                    })}
                   </p>
                 </div>
               </div>
@@ -83,7 +89,7 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
                     className="h-8 px-3 text-xs"
                     onClick={() => handleApprove(gateway._id)}
                   >
-                    Approve
+                    Godkend
                   </Button>
                 ) : (
                   <DropdownMenu>
@@ -102,7 +108,7 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
                         onClick={() => handleReject(gateway._id)}
                       >
                         <XCircle className="h-3.5 w-3.5 mr-2" />
-                        Remove
+                        Fjern
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

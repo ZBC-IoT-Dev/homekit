@@ -31,18 +31,18 @@ export function CreateHomeForm() {
   return (
     <div className="flex flex-col gap-6 pt-4">
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold">Create a Home</h2>
+        <h2 className="text-xl font-semibold">Opret et hjem</h2>
         <p className="text-sm text-muted-foreground">
-          Start a new smart home environment.
+          Start et nyt smart home-miljo.
         </p>
       </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Home Name</Label>
+            <Label htmlFor="name">Hjemmenavn</Label>
             <Input
               id="name"
-              placeholder="My Sweet Home"
+              placeholder="Mit smarte hjem"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -50,10 +50,10 @@ export function CreateHomeForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="address">Address (Optional)</Label>
+            <Label htmlFor="address">Adresse (valgfri)</Label>
             <Input
               id="address"
-              placeholder="123 Smart St."
+              placeholder="Smartvej 123"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className="h-11"
@@ -61,7 +61,7 @@ export function CreateHomeForm() {
           </div>
         </div>
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? "Creating..." : "Create Home"}
+          {loading ? "Opretter..." : "Opret hjem"}
         </Button>
       </form>
     </div>

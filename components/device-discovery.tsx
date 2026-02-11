@@ -16,12 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { getProduct, mergeProductsWithBackend } from "@/lib/products";
 import { middleTruncate } from "@/lib/utils";
@@ -73,11 +68,11 @@ export function DeviceDiscovery() {
         deviceId: pairingDevice._id,
         name: deviceName,
       });
-      toast.success(`${deviceName} paired successfully!`);
+      toast.success(`${deviceName} blev parret.`);
       setPairingDevice(null);
       setDeviceName("");
     } catch {
-      toast.error("Failed to pair device");
+      toast.error("Kunne ikke parre enhed");
     } finally {
       setIsPairing(false);
     }
@@ -92,7 +87,7 @@ export function DeviceDiscovery() {
           <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
             <Wifi className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm font-medium">
-              Device Discovery
+              Enhedsopdagelse
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -119,7 +114,7 @@ export function DeviceDiscovery() {
                     }}
                   >
                     <span className="truncate text-left">
-                      Pair {displayName}
+                      Par {displayName}
                     </span>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
@@ -127,7 +122,7 @@ export function DeviceDiscovery() {
               })}
               {pendingDevices.length > 3 && (
                 <p className="text-center text-xs text-muted-foreground">
-                  + {pendingDevices.length - 3} additional devices detected
+                  + {pendingDevices.length - 3} yderligere enheder fundet
                 </p>
               )}
             </div>
@@ -144,15 +139,13 @@ export function DeviceDiscovery() {
             <>
               <DialogHeader>
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="secondary">
-                    Discovery
-                  </Badge>
+                  <Badge variant="secondary">Opdagelse</Badge>
                   <span className="max-w-[220px] truncate text-xs font-mono text-muted-foreground">
                     ID: {middleTruncate(pairingDevice.identifier, 11, 4)}
                   </span>
                 </div>
                 <DialogTitle className="text-2xl font-bold">
-                  Pair{" "}
+                  Par{" "}
                   {
                     getProduct(
                       pairingDevice.type,
@@ -197,30 +190,28 @@ export function DeviceDiscovery() {
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="global-pair-name">Display Name</Label>
+                    <Label htmlFor="global-pair-name">Visningsnavn</Label>
                     <Input
                       id="global-pair-name"
                       value={deviceName}
                       onChange={(e) => setDeviceName(e.target.value)}
-                      placeholder="e.g. Living Room Temperature"
+                      placeholder="f.eks. Stuetemperatur"
                     />
                   </div>
 
                   <div className="space-y-2 rounded-md border bg-muted/50 p-4 text-sm">
                     <div className="flex items-center gap-2 font-semibold">
                       <Info className="h-4 w-4" />
-                      Key Features
+                      Nøglefunktioner
                     </div>
                     <ul className="grid grid-cols-2 gap-x-4 gap-y-1 list-disc list-inside text-xs text-muted-foreground">
                       {getProduct(
                         pairingDevice.type,
                         pairingDevice.identifier,
                         productCatalog,
-                      ).features.map(
-                        (feature: string, i: number) => (
-                          <li key={i}>{feature}</li>
-                        ),
-                      )}
+                      ).features.map((feature: string, i: number) => (
+                        <li key={i}>{feature}</li>
+                      ))}
                     </ul>
                   </div>
                 </div>
@@ -231,13 +222,13 @@ export function DeviceDiscovery() {
                   variant="outline"
                   onClick={() => setPairingDevice(null)}
                 >
-                  Cancel
+                  Annuller
                 </Button>
                 <Button
                   onClick={handlePair}
                   disabled={!deviceName.trim() || isPairing}
                 >
-                  {isPairing ? "Pairing..." : "Add to Home"}
+                  {isPairing ? "Parrer..." : "Tilføj til hjem"}
                 </Button>
               </DialogFooter>
             </>

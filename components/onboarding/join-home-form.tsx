@@ -23,7 +23,7 @@ export function JoinHomeForm() {
       await joinHome({ inviteCode: inviteCode.toUpperCase() });
       router.push("/");
     } catch (err) {
-      setError("Invalid invite code or unable to join.");
+      setError("Ugyldig invitationskode eller kunne ikke deltage.");
       console.error(err);
     } finally {
       setLoading(false);
@@ -33,15 +33,15 @@ export function JoinHomeForm() {
   return (
     <div className="flex flex-col gap-6 pt-4">
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold">Join a Home</h2>
+        <h2 className="text-xl font-semibold">Deltag i et hjem</h2>
         <p className="text-sm text-muted-foreground">
-          Enter the invite code from the home owner.
+          Indtast invitationskoden fra ejeren af hjemmet.
         </p>
       </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="inviteCode">Invite Code</Label>
+            <Label htmlFor="inviteCode">Invitationskode</Label>
             <Input
               id="inviteCode"
               placeholder="ABC1234"
@@ -56,7 +56,7 @@ export function JoinHomeForm() {
           </div>
         </div>
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? "Joining..." : "Join Home"}
+          {loading ? "Deltager..." : "Deltag i hjem"}
         </Button>
       </form>
     </div>

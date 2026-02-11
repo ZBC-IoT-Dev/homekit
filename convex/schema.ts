@@ -57,4 +57,14 @@ export default defineSchema({
   })
     .index("by_key", ["key"])
     .index("by_enabled", ["enabled"]),
+  categories: defineTable({
+    homeId: v.id("homes"),
+    name: v.string(),
+    slug: v.string(),
+    deviceTypeKey: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_home", ["homeId"])
+    .index("by_home_and_slug", ["homeId", "slug"]),
 });

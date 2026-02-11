@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 interface CreateHomeDialogProps {
@@ -44,14 +43,14 @@ export function CreateHomeDialog({
 
     try {
       const homeId = await createHome({ name });
-      toast.success("Home created successfully!");
+      toast.success("Hjem oprettet.");
       setOpen(false);
       setName("");
       if (onHomeCreated) {
         onHomeCreated(homeId);
       }
     } catch (error) {
-      toast.error("Failed to create home");
+      toast.error("Kunne ikke oprette hjem");
       console.error(error);
     }
   };
@@ -61,14 +60,14 @@ export function CreateHomeDialog({
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create a New Home</DialogTitle>
+          <DialogTitle>Opret et nyt hjem</DialogTitle>
           <DialogDescription>
-            Add a new home to your smart home dashboard.
+            Tilføj et nyt hjem til dit smart home-dashboard.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            placeholder="Home Name (e.g., Summer House)"
+            placeholder="Hjemmenavn (f.eks. Sommerhus)"
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus
@@ -79,9 +78,9 @@ export function CreateHomeDialog({
               variant="outline"
               onClick={() => setOpen(false)}
             >
-              Cancel
+              Annuller
             </Button>
-            <Button type="submit">Create</Button>
+            <Button type="submit">Opret</Button>
           </DialogFooter>
         </form>
       </DialogContent>

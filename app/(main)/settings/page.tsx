@@ -27,9 +27,9 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="space-y-0.5">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Indstillinger</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your home environment and members.
+          Administrer dit hjemmemiljo og medlemmer.
         </p>
       </div>
 
@@ -37,11 +37,11 @@ export default function SettingsPage() {
         <TabsList className="mb-4 grid w-full grid-cols-3">
           <TabsTrigger value="general" className="gap-1.5">
             <Settings className="h-3.5 w-3.5" />
-            General
+            Generelt
           </TabsTrigger>
           <TabsTrigger value="members" className="gap-1.5">
             <Users className="h-3.5 w-3.5" />
-            Members
+            Medlemmer
           </TabsTrigger>
           <TabsTrigger value="gateways" className="gap-1.5">
             <Router className="h-3.5 w-3.5" />

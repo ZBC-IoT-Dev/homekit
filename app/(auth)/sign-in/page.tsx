@@ -26,14 +26,14 @@ export default function SignIn() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Welcome to HomeKit</CardTitle>
+        <CardTitle>Velkommen til HomeKit</CardTitle>
         <CardDescription>
-          Sign in to manage your devices and home settings.
+          Log ind for at administrere dine enheder og hjemindstillinger.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Button onClick={handleSignIn} disabled={loading} className="w-full">
-          {loading ? "Signing in..." : "Sign in with GitHub"}
+          {loading ? "Logger ind..." : "Log ind med GitHub"}
         </Button>
       </CardContent>
     </Card>

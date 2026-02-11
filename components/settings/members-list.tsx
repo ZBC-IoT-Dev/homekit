@@ -51,7 +51,7 @@ export function MembersList({ homeId }: { homeId: Id<"homes"> }) {
         <CardContent className="p-0">
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <Users className="mb-2 h-6 w-6" />
-            <p className="text-sm text-muted-foreground">No members yet</p>
+            <p className="text-sm text-muted-foreground">Ingen medlemmer endnu</p>
           </div>
         </CardContent>
       </Card>
@@ -66,7 +66,7 @@ export function MembersList({ homeId }: { homeId: Id<"homes"> }) {
           const member = (members as MemberRecord[]).find(
             (m) => m.userId === typedUser.userId,
           );
-          const role = member?.role || "Member";
+          const role = member?.role || "member";
           const isAdmin = role === "admin";
 
           return (

@@ -6,6 +6,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
+import { da } from "date-fns/locale";
 import {
   Activity,
   Thermometer,
@@ -17,6 +18,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,10 +46,16 @@ type DeviceCardModel = {
 };
 
 export default function DevicesPage() {
+  const searchParams = useSearchParams();
   const home = useQuery(api.homes.getHome);
+  const categorySlug = searchParams.get("category");
   const devices = useQuery(
     api.gateways.getHomeDevices,
     home ? { homeId: home._id } : "skip",
+  );
+  const selectedCategory = useQuery(
+    api.categories.getBySlug,
+    home && categorySlug ? { homeId: home._id, slug: categorySlug } : "skip",
   );
   const backendDeviceTypes = useQuery(api.deviceTypes.listEnabled, {});
 
@@ -88,12 +96,12 @@ export default function DevicesPage() {
   const pairedDevices = devices.filter((d) => d.status === "paired");
 
   const handleUnpair = async (deviceId: Id<"devices">) => {
-    if (!confirm("Are you sure you want to remove this device?")) return;
+    if (!confirm("Er du sikker på, at du vil fjerne denne enhed?")) return;
     try {
       await unpairDevice({ deviceId });
-      toast.success("Device removed");
+      toast.success("Enhed fjernet");
     } catch {
-      toast.error("Failed to remove device");
+      toast.error("Kunne ikke fjerne enhed");
     }
   };
 
@@ -110,10 +118,10 @@ export default function DevicesPage() {
 
   const getTelemetryLabel = (key: string) => {
     const normalized = key.toLowerCase();
-    if (normalized === "temp") return "Temperature";
-    if (normalized === "humidity" || normalized === "humid") return "Humidity";
-    if (normalized === "id") return "Device ID";
-    if (normalized === "type") return "Device Type";
+    if (normalized === "temp") return "Temperatur";
+    if (normalized === "humidity" || normalized === "humid") return "Fugtighed";
+    if (normalized === "id") return "Enheds-ID";
+    if (normalized === "type") return "Enhedstype";
     return key;
   };
 
@@ -149,30 +157,47 @@ export default function DevicesPage() {
       .filter((entry): entry is readonly [string, unknown] => Boolean(entry));
   };
 
+  const filteredDevices = selectedCategory
+    ? pairedDevices.filter(
+        (device) =>
+          device.type.toLowerCase().trim() ===
+          selectedCategory.deviceTypeKey.toLowerCase().trim(),
+      )
+    : pairedDevices;
+
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Devices</h1>
-        <p className="text-sm text-muted-foreground">Home: {home.name}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Enheder
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Hjem: {home.name}
+          {selectedCategory ? ` · ${selectedCategory.name}` : ""}
+        </p>
       </div>
 
       <div className="flex items-center gap-2">
         <CheckCircle2 className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-medium">Active Devices</h2>
+        <h2 className="text-sm font-medium">
+          {selectedCategory ? selectedCategory.name : "Aktive enheder"}
+        </h2>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {pairedDevices.length === 0 ? (
+        {filteredDevices.length === 0 ? (
           <Card className="col-span-full">
             <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
               <Box className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                No active devices yet.
+                {selectedCategory
+                  ? "Ingen enheder i denne kategori endnu."
+                  : "Ingen aktive enheder endnu."}
               </p>
             </CardContent>
           </Card>
         ) : (
-          pairedDevices.map((device) => {
+          filteredDevices.map((device) => {
             const { displayName } = resolveDevicePresentation(device);
 
             return (
@@ -232,7 +257,7 @@ export default function DevicesPage() {
                           Status
                         </span>
                         <p className="text-sm font-medium">
-                          {String(device.data || "Active")}
+                          {String(device.data || "Aktiv")}
                         </p>
                       </div>
                     )}
@@ -242,7 +267,10 @@ export default function DevicesPage() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {formatDistanceToNow(device.lastSeen)} ago
+                      {formatDistanceToNow(device.lastSeen, {
+                        addSuffix: true,
+                        locale: da,
+                      })}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-green-500" />
@@ -278,7 +306,7 @@ export default function DevicesPage() {
                       </div>
                       <DialogTitle>{displayName}</DialogTitle>
                       <DialogDescription>
-                        Hardware status and technical specifications.
+                        Hardwarestatus og tekniske specifikationer.
                       </DialogDescription>
                     </DialogHeader>
 
@@ -328,7 +356,7 @@ export default function DevicesPage() {
                               Status
                             </span>
                             <p className="text-base font-medium">
-                              {String(selectedDevice.data || "Operational")}
+                              {String(selectedDevice.data || "Aktiv")}
                             </p>
                           </div>
                         )}
@@ -337,16 +365,19 @@ export default function DevicesPage() {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="rounded-md border bg-muted/40 p-3">
                           <p className="text-xs text-muted-foreground">
-                            Protocol
+                            Protokol
                           </p>
                           <p className="text-sm font-medium">MQTT</p>
                         </div>
                         <div className="rounded-md border bg-muted/40 p-3">
                           <p className="text-xs text-muted-foreground">
-                            Last Seen
+                            Sidst set
                           </p>
                           <p className="text-sm font-medium">
-                            {formatDistanceToNow(selectedDevice.lastSeen)} ago
+                            {formatDistanceToNow(selectedDevice.lastSeen, {
+                              addSuffix: true,
+                              locale: da,
+                            })}
                           </p>
                         </div>
                       </div>
@@ -356,14 +387,14 @@ export default function DevicesPage() {
                       <Button
                         variant="ghost"
                         onClick={() => {
-                          if (confirm("Remove this device from your home?")) {
+                          if (confirm("Fjern denne enhed fra dit hjem?")) {
                             handleUnpair(selectedDevice._id);
                             setSelectedDevice(null);
                           }
                         }}
                         className="text-destructive hover:text-destructive"
                       >
-                        Unpair Device
+                        Fjern parring
                       </Button>
                       <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="h-2 w-2 rounded-full bg-green-500" />
