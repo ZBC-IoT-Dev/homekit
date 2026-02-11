@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 import { getProduct, mergeProductsWithBackend } from "@/lib/products";
+import { middleTruncate } from "@/lib/utils";
 import Image from "next/image";
 import { Plus, Wifi, Info } from "lucide-react";
 
@@ -86,17 +87,16 @@ export function DeviceDiscovery() {
 
   return (
     <>
-      {/* Global Floating Notification */}
       {showNotification && !pairingDevice && (
-        <Card className="fixed bottom-6 right-6 z-50 w-64 shadow-2xl border-primary/10 animate-in fade-in slide-in-from-bottom-5 rounded-2xl bg-card/95 backdrop-blur-md overflow-hidden">
-          <CardHeader className="flex flex-row items-center space-y-0 gap-2 p-3 pb-1.5">
-            <Wifi className="h-3 w-3 text-primary animate-pulse" />
-            <CardTitle className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
+        <Card className="fixed bottom-6 right-6 z-50 w-72 shadow-lg">
+          <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+            <Wifi className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-medium">
               Device Discovery
             </CardTitle>
           </CardHeader>
-          <CardContent className="w-full p-0 px-2">
-            <div className="flex flex-col gap-1.5">
+          <CardContent className="space-y-2">
+            <div className="flex flex-col gap-2">
               {pendingDevices.slice(0, 3).map((device) => {
                 const productWithBackend = getProduct(
                   device.type,
@@ -105,29 +105,29 @@ export function DeviceDiscovery() {
                 );
                 const isGeneric = productWithBackend.id === "other";
                 const displayName = isGeneric
-                  ? `Unit ${device.identifier}`
+                  ? `Unit ${middleTruncate(device.identifier, 11, 4)}`
                   : productWithBackend.name;
                 return (
                   <Button
                     key={device._id}
                     variant="secondary"
                     size="sm"
-                    className="w-full justify-between h-8 text-[10px] font-semibold bg-secondary/40 hover:bg-secondary/70 rounded-lg border-0 transition-all hover:translate-x-0.5"
+                    className="w-full justify-between"
                     onClick={() => {
                       setPairingDevice(device);
                       setDeviceName(device.identifier);
                     }}
                   >
-                    <span className="truncate flex-1 text-left opacity-90">
+                    <span className="truncate text-left">
                       Pair {displayName}
                     </span>
-                    <Plus className="h-3 w-3 opacity-30" />
+                    <Plus className="h-3.5 w-3.5" />
                   </Button>
                 );
               })}
               {pendingDevices.length > 3 && (
-                <p className="text-[8px] text-center text-muted-foreground/30 w-full pt-1 font-bold">
-                  + {pendingDevices.length - 3} additional units Detected
+                <p className="text-center text-xs text-muted-foreground">
+                  + {pendingDevices.length - 3} additional devices detected
                 </p>
               )}
             </div>
@@ -135,7 +135,6 @@ export function DeviceDiscovery() {
         </Card>
       )}
 
-      {/* Global Pairing Dialog */}
       <Dialog
         open={!!pairingDevice}
         onOpenChange={(open) => !open && setPairingDevice(null)}
@@ -145,11 +144,11 @@ export function DeviceDiscovery() {
             <>
               <DialogHeader>
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="secondary" className="rounded-sm">
+                  <Badge variant="secondary">
                     Discovery
                   </Badge>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    ID: {pairingDevice.identifier}
+                  <span className="max-w-[220px] truncate text-xs font-mono text-muted-foreground">
+                    ID: {middleTruncate(pairingDevice.identifier, 11, 4)}
                   </span>
                 </div>
                 <DialogTitle className="text-2xl font-bold">
@@ -174,7 +173,7 @@ export function DeviceDiscovery() {
               </DialogHeader>
 
               <div className="grid gap-6 py-4">
-                <div className="relative aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden border">
+                <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-muted">
                   <Image
                     src={
                       getProduct(
@@ -192,7 +191,7 @@ export function DeviceDiscovery() {
                     }
                     width={300}
                     height={300}
-                    className="object-contain drop-shadow-md"
+                    className="object-contain p-4"
                   />
                 </div>
 
@@ -207,12 +206,12 @@ export function DeviceDiscovery() {
                     />
                   </div>
 
-                  <div className="bg-muted/50 p-4 rounded-md border text-sm space-y-2">
+                  <div className="space-y-2 rounded-md border bg-muted/50 p-4 text-sm">
                     <div className="flex items-center gap-2 font-semibold">
                       <Info className="h-4 w-4" />
                       Key Features
                     </div>
-                    <ul className="grid grid-cols-2 gap-x-4 gap-y-1 list-disc list-inside text-muted-foreground text-xs font-medium">
+                    <ul className="grid grid-cols-2 gap-x-4 gap-y-1 list-disc list-inside text-xs text-muted-foreground">
                       {getProduct(
                         pairingDevice.type,
                         pairingDevice.identifier,

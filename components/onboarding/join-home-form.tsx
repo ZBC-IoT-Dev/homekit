@@ -51,7 +51,7 @@ export function JoinHomeForm() {
               className="h-11 uppercase font-mono tracking-widest placeholder:normal-case placeholder:font-sans placeholder:tracking-normal"
             />
             {error && (
-              <p className="text-sm text-red-500 font-medium">{error}</p>
+              <p className="text-sm text-destructive">{error}</p>
             )}
           </div>
         </div>

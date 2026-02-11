@@ -1,12 +1,17 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function SignIn() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = async () => {
@@ -19,11 +24,18 @@ export default function SignIn() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4">
-      <h1 className="text-2xl font-bold">Welcome Home</h1>
-      <Button onClick={handleSignIn} disabled={loading}>
-        {loading ? "Signing in..." : "Sign in with GitHub"}
-      </Button>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Welcome to HomeKit</CardTitle>
+        <CardDescription>
+          Sign in to manage your devices and home settings.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={handleSignIn} disabled={loading} className="w-full">
+          {loading ? "Signing in..." : "Sign in with GitHub"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

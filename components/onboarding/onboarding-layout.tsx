@@ -11,9 +11,9 @@ import {
 
 export function OnboardingLayout() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 p-4">
+    <div className="flex min-h-[80vh] flex-col items-center justify-center gap-8 p-4">
       <div className="text-center space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground">
+        <h1 className="text-4xl font-semibold tracking-tight">
           Welcome to HomeKit
         </h1>
         <p className="text-muted-foreground text-lg">
@@ -21,7 +21,7 @@ export function OnboardingLayout() {
         </p>
       </div>
 
-      <Card className="w-full max-w-md shadow-lg border-zinc-200 dark:border-zinc-800">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Get Started</CardTitle>
           <CardDescription>

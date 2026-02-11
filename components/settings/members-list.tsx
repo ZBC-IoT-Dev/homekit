@@ -2,12 +2,25 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, User } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Shield, User, Users } from "lucide-react";
 
-export function MembersList({ homeId }: { homeId: any }) {
+type MemberRecord = {
+  userId: string;
+  role?: string;
+};
+
+type UserRecord = {
+  userId: string;
+  name?: string;
+  email?: string;
+  image?: string;
+};
+
+export function MembersList({ homeId }: { homeId: Id<"homes"> }) {
   const members = useQuery(api.homes.getMembers, { homeId });
 
   const userIds = members ? members.map((m) => m.userId) : [];
@@ -18,7 +31,7 @@ export function MembersList({ homeId }: { homeId: any }) {
 
   if (!members || !users) {
     return (
-      <div className="space-y-3 max-w-2xl mx-auto">
+      <div className="space-y-3">
         {[1, 2, 3].map((i) => (
           <div key={i} className="flex items-center gap-3 p-2">
             <Skeleton className="h-8 w-8 rounded-full" />
@@ -32,46 +45,57 @@ export function MembersList({ homeId }: { homeId: any }) {
     );
   }
 
+  if (members.length === 0 || users.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-0">
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <Users className="mb-2 h-6 w-6" />
+            <p className="text-sm text-muted-foreground">No members yet</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="divide-y divide-border/30">
-        {users.map((user: any) => {
-          const member = members.find((m) => m.userId === user.userId);
+    <Card>
+      <CardContent className="divide-y p-0">
+        {users.map((user) => {
+          const typedUser = user as UserRecord;
+          const member = (members as MemberRecord[]).find(
+            (m) => m.userId === typedUser.userId,
+          );
           const role = member?.role || "Member";
           const isAdmin = role === "admin";
 
           return (
             <div
-              key={user.userId}
-              className="flex items-center gap-3 py-3 group hover:bg-muted/5 transition-colors rounded-lg px-2 -mx-2"
+              key={typedUser.userId}
+              className="flex items-center gap-3 px-4 py-3"
             >
-              <Avatar className="h-9 w-9 border border-border/50">
-                <AvatarImage src={user.image || ""} />
-                <AvatarFallback className="text-[10px] font-bold">
-                  {user.name?.charAt(0)}
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={typedUser.image || ""} />
+                <AvatarFallback className="text-xs font-semibold">
+                  {typedUser.name?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm text-foreground truncate">
-                    {user.name}
+                    {typedUser.name}
                   </p>
                   {isAdmin && (
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-tighter font-bold">
+                    <span className="text-xs text-muted-foreground">
                       Admin
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground truncate opacity-70">
-                  {user.email}
+                <p className="truncate text-xs text-muted-foreground">
+                  {typedUser.email}
                 </p>
               </div>
-              <div
-                className={cn(
-                  "h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground/50 group-hover:text-foreground transition-colors",
-                  isAdmin && "text-primary/70",
-                )}
-              >
+              <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 {isAdmin ? (
                   <Shield className="h-3.5 w-3.5" />
                 ) : (
@@ -81,7 +105,7 @@ export function MembersList({ homeId }: { homeId: any }) {
             </div>
           );
         })}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

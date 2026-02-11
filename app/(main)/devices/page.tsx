@@ -27,8 +27,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { getProduct, mergeProductsWithBackend } from "@/lib/products";
+import { middleTruncate } from "@/lib/utils";
 import Image from "next/image";
 
 type DeviceCardModel = {
@@ -59,14 +61,23 @@ export default function DevicesPage() {
     [backendDeviceTypes],
   );
 
+  const resolveDevicePresentation = (device: DeviceCardModel) => {
+    const product = getProduct(device.type, device.identifier, productCatalog);
+    const displayName =
+      device.name ||
+      (product.id === "other" ? device.identifier : product.name);
+
+    return { product, displayName };
+  };
+
   if (!home || !devices) {
     return (
-      <div className="flex flex-1 flex-col gap-10 p-8 md:p-12 max-w-6xl mx-auto w-full">
+      <div className="flex flex-1 flex-col gap-8">
         <div className="space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+          <Skeleton className="h-8 w-40" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-48 w-full" />
+              <Skeleton key={i} className="h-52 w-full" />
             ))}
           </div>
         </div>
@@ -97,275 +108,271 @@ export default function DevicesPage() {
     return <Box className="h-5 w-5 text-muted-foreground" />;
   };
 
+  const getTelemetryLabel = (key: string) => {
+    const normalized = key.toLowerCase();
+    if (normalized === "temp") return "Temperature";
+    if (normalized === "humidity" || normalized === "humid") return "Humidity";
+    if (normalized === "id") return "Device ID";
+    if (normalized === "type") return "Device Type";
+    return key;
+  };
+
+  const getTelemetryValue = (key: string, value: unknown) => {
+    const normalized = key.toLowerCase();
+    const text = String(value ?? "—");
+
+    if (normalized === "id" || normalized === "hubid") {
+      return middleTruncate(text);
+    }
+
+    if (normalized === "type") {
+      return text.replace(/([a-z])([A-Z])/g, "$1 $2");
+    }
+
+    return text;
+  };
+
+  const selectDisplayTelemetryEntries = (data: unknown) => {
+    if (!data || typeof data !== "object") {
+      return [];
+    }
+
+    const entries = Object.entries(data);
+    const preferredOrder = ["humidity", "humid", "temp", "id", "type"];
+
+    const byKey = new Map(
+      entries.map(([key, value]) => [key.toLowerCase(), [key, value] as const]),
+    );
+
+    return preferredOrder
+      .map((key) => byKey.get(key))
+      .filter((entry): entry is readonly [string, unknown] => Boolean(entry));
+  };
+
   return (
-    <div className="flex flex-1 flex-col gap-8 p-8 max-w-7xl mx-auto w-full">
+    <div className="flex flex-1 flex-col gap-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Devices</h1>
-        <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-50">
-          Hardware Cluster: {home.name}
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">Devices</h1>
+        <p className="text-sm text-muted-foreground">Home: {home.name}</p>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 opacity-60">
-          <CheckCircle2 className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-bold uppercase tracking-widest">
-            Active Units
-          </h2>
-        </div>
+      <div className="flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4 text-primary" />
+        <h2 className="text-sm font-medium">Active Devices</h2>
+      </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {pairedDevices.length === 0 ? (
-            <Card className="col-span-full py-16 bg-muted/10 border-dashed border-border/50 rounded-2xl">
-              <CardContent className="flex flex-col items-center gap-4 text-center">
-                <Box className="h-10 w-10 text-muted-foreground/20" />
-                <div className="space-y-1">
-                  <p className="font-bold text-sm uppercase tracking-widest opacity-40">
-                    No active units
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            pairedDevices.map((device) => {
-              return (
-                <Card
-                  key={device._id}
-                  className="group relative cursor-pointer hover:border-primary/20 transition-all shadow-none hover:shadow-2xl hover:-translate-y-0.5 rounded-2xl border-border/40 bg-card/50"
-                  onClick={() => setSelectedDevice(device)}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-secondary/50 rounded-xl">
-                        {getDeviceIcon(device)}
-                      </div>
-                      <div>
-                        <CardTitle className="text-xs font-bold tracking-tight">
-                          {device.name ||
-                            (getProduct(
-                              device.type,
-                              device.identifier,
-                              productCatalog,
-                            ).id === "other"
-                              ? device.identifier
-                              : getProduct(
-                                  device.type,
-                                  device.identifier,
-                                  productCatalog,
-                                ).name)}
-                        </CardTitle>
-                        <p className="text-[9px] text-muted-foreground/40 font-mono tracking-tighter">
-                          {device.identifier}
-                        </p>
-                      </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {pairedDevices.length === 0 ? (
+          <Card className="col-span-full">
+            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+              <Box className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                No active devices yet.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          pairedDevices.map((device) => {
+            const { displayName } = resolveDevicePresentation(device);
+
+            return (
+              <Card
+                key={device._id}
+                className="cursor-pointer transition-colors hover:border-primary/40"
+                onClick={() => setSelectedDevice(device)}
+              >
+                <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-md bg-muted p-2">
+                      {getDeviceIcon(device)}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUnpair(device._id);
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-2">
-                    <div className="grid grid-cols-2 gap-1.5 mb-3">
-                      {device.data && typeof device.data === "object" ? (
-                        Object.entries(device.data).map(([k, v]) => (
+                    <div className="space-y-0">
+                      <CardTitle className="text-base">{displayName}</CardTitle>
+                      <p className="max-w-[180px] truncate text-xs font-mono text-muted-foreground">
+                        {middleTruncate(device.identifier, 11, 4)}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUnpair(device._id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {selectDisplayTelemetryEntries(device.data).length > 0 ? (
+                      selectDisplayTelemetryEntries(device.data).map(
+                        ([k, v]) => (
                           <div
                             key={k}
-                            className="p-2 bg-muted/20 rounded-xl border border-border/30 flex flex-col gap-0"
+                            className="rounded-md border bg-muted/40 p-2"
                           >
-                            <span className="text-[8px] text-muted-foreground/40 uppercase font-bold tracking-widest">
-                              {k}
+                            <span className="text-xs text-muted-foreground">
+                              {getTelemetryLabel(k)}
                             </span>
-                            <span className="text-sm font-bold tabular-nums tracking-tight">
-                              {String(v)}
-                            </span>
+                            <p
+                              title={String(v)}
+                              className="truncate text-sm font-medium tabular-nums"
+                            >
+                              {getTelemetryValue(k, v)}
+                            </p>
                           </div>
-                        ))
-                      ) : (
-                        <div className="col-span-2 p-2 bg-muted/20 rounded-xl border border-border/30">
-                          <span className="text-[8px] text-muted-foreground/40 uppercase font-bold tracking-widest block">
-                            Status
-                          </span>
-                          <span className="text-xs font-bold">
-                            {String(device.data || "Active")}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between text-[8px] text-muted-foreground/40 font-bold uppercase tracking-tighter pt-2 border-t border-border/30">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-2.5 w-2.5 opacity-50" />
-                        {formatDistanceToNow(device.lastSeen)} ago
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <span className="h-1 w-1 rounded-full bg-green-500/50" />
-                        <span>Live</span>
+                        ),
+                      )
+                    ) : (
+                      <div className="col-span-2 rounded-md border bg-muted/40 p-2">
+                        <span className="text-xs text-muted-foreground">
+                          Status
+                        </span>
+                        <p className="text-sm font-medium">
+                          {String(device.data || "Active")}
+                        </p>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+                    )}
+                  </div>
+
+                  <Separator />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {formatDistanceToNow(device.lastSeen)} ago
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      Online
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
 
-      {/* Device Detail Dialog */}
       <Dialog
         open={!!selectedDevice}
         onOpenChange={(open) => !open && setSelectedDevice(null)}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           {selectedDevice && (
             <>
-              <DialogHeader>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge
-                    variant="secondary"
-                    className="rounded-sm text-[10px] font-bold uppercase tracking-widest px-1.5 h-5 bg-secondary/50"
-                  >
-                    {
-                      getProduct(
-                        selectedDevice.type,
-                        selectedDevice.identifier,
-                        productCatalog,
-                      ).brand
-                    }
-                  </Badge>
-                  <span className="text-[10px] text-muted-foreground/50 font-mono tracking-tighter">
-                    {selectedDevice.identifier}
-                  </span>
-                </div>
-                <DialogTitle className="text-xl font-bold tracking-tight">
-                  {selectedDevice.name ||
-                    (getProduct(
-                      selectedDevice.type,
-                      selectedDevice.identifier,
-                      productCatalog,
-                    ).id === "other"
-                      ? selectedDevice.identifier
-                      : getProduct(
-                          selectedDevice.type,
-                          selectedDevice.identifier,
-                          productCatalog,
-                        ).name)}
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  Hardware status and technical specifications.
-                </DialogDescription>
-              </DialogHeader>
+              {(() => {
+                const { product, displayName } =
+                  resolveDevicePresentation(selectedDevice);
 
-              <div className="grid gap-6 py-4">
-                <div className="aspect-video w-full bg-muted/20 rounded-xl flex items-center justify-center border border-border/50 overflow-hidden">
-                  <Image
-                    src={
-                      getProduct(
-                        selectedDevice.type,
-                        selectedDevice.identifier,
-                        productCatalog,
-                      ).image
-                    }
-                    alt={
-                      getProduct(
-                        selectedDevice.type,
-                        selectedDevice.identifier,
-                        productCatalog,
-                      ).name
-                    }
-                    width={200}
-                    height={200}
-                    className="object-contain opacity-90"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {selectedDevice.data &&
-                  typeof selectedDevice.data === "object" ? (
-                    Object.entries(selectedDevice.data).map(([k, v]) => (
-                      <div
-                        key={k}
-                        className="p-3 bg-muted/20 rounded-xl border border-border/50 flex flex-col gap-0.5"
-                      >
-                        <div className="flex items-center gap-2 text-muted-foreground/60 mb-0.5">
-                          {k.toLowerCase().includes("temp") ? (
-                            <Thermometer className="h-3 w-3" />
-                          ) : k.toLowerCase().includes("humid") ? (
-                            <Droplets className="h-3 w-3" />
-                          ) : (
-                            <Activity className="h-3 w-3" />
-                          )}
-                          <span className="text-[9px] font-bold uppercase tracking-wider">
-                            {k}
-                          </span>
-                        </div>
-                        <span className="text-xl font-semibold tabular-nums tracking-tight">
-                          {String(v)}
+                return (
+                  <>
+                    <DialogHeader className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{product.brand}</Badge>
+                        <span className="max-w-[220px] truncate text-xs font-mono text-muted-foreground">
+                          {middleTruncate(selectedDevice.identifier, 11, 4)}
                         </span>
                       </div>
-                    ))
-                  ) : (
-                    <div className="col-span-2 p-3 bg-muted/20 rounded-xl border border-border/50">
-                      <span className="text-[9px] font-bold text-muted-foreground/60 uppercase mb-1 block tracking-wider">
-                        Status
-                      </span>
-                      <span className="text-base font-semibold italic">
-                        {String(selectedDevice.data || "Operational")}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                      <DialogTitle>{displayName}</DialogTitle>
+                      <DialogDescription>
+                        Hardware status and technical specifications.
+                      </DialogDescription>
+                    </DialogHeader>
 
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 pl-1">
-                    Technical Detail
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2 text-[10px]">
-                    <div className="p-2.5 bg-muted/10 rounded-lg flex flex-col gap-0.5">
-                      <span className="text-muted-foreground/40 uppercase font-medium">
-                        Protocol
-                      </span>
-                      <span className="font-semibold">MQTT</span>
-                    </div>
-                    <div className="p-2.5 bg-muted/10 rounded-lg flex flex-col gap-0.5">
-                      <span className="text-muted-foreground/40 uppercase font-medium">
-                        Last Seen
-                      </span>
-                      <span className="font-semibold">
-                        {formatDistanceToNow(selectedDevice.lastSeen)} ago
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                    <div className="grid gap-4 py-2">
+                      <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-muted">
+                        <Image
+                          src={product.image}
+                          alt={product.name}
+                          width={240}
+                          height={240}
+                          className="h-full w-full object-contain p-4"
+                        />
+                      </div>
 
-              <DialogFooter className="flex items-center justify-between sm:justify-between w-full border-t border-border/40 pt-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (confirm("Remove this device from your home?")) {
-                      handleUnpair(selectedDevice._id);
-                      setSelectedDevice(null);
-                    }
-                  }}
-                  className="text-destructive/60 hover:text-destructive hover:bg-destructive/5 font-bold text-[10px] uppercase h-8 px-3"
-                >
-                  Unpair unit
-                </Button>
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500/60" />
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/80">
-                    Online
-                  </span>
-                </div>
-              </DialogFooter>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {selectDisplayTelemetryEntries(selectedDevice.data)
+                          .length > 0 ? (
+                          selectDisplayTelemetryEntries(
+                            selectedDevice.data,
+                          ).map(([k, v]) => (
+                            <div
+                              key={k}
+                              className="rounded-md border bg-muted/40 p-3"
+                            >
+                              <div className="mb-1 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                                {k.toLowerCase().includes("temp") ? (
+                                  <Thermometer className="h-3 w-3" />
+                                ) : k.toLowerCase().includes("humid") ||
+                                  k.toLowerCase().includes("humidity") ? (
+                                  <Droplets className="h-3 w-3" />
+                                ) : (
+                                  <Activity className="h-3 w-3" />
+                                )}
+                                <span>{getTelemetryLabel(k)}</span>
+                              </div>
+                              <p
+                                title={String(v)}
+                                className="truncate text-lg font-semibold tabular-nums"
+                              >
+                                {getTelemetryValue(k, v)}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="col-span-2 rounded-md border bg-muted/40 p-3">
+                            <span className="text-xs text-muted-foreground">
+                              Status
+                            </span>
+                            <p className="text-base font-medium">
+                              {String(selectedDevice.data || "Operational")}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-md border bg-muted/40 p-3">
+                          <p className="text-xs text-muted-foreground">
+                            Protocol
+                          </p>
+                          <p className="text-sm font-medium">MQTT</p>
+                        </div>
+                        <div className="rounded-md border bg-muted/40 p-3">
+                          <p className="text-xs text-muted-foreground">
+                            Last Seen
+                          </p>
+                          <p className="text-sm font-medium">
+                            {formatDistanceToNow(selectedDevice.lastSeen)} ago
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <DialogFooter className="flex items-center justify-between sm:justify-between">
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm("Remove this device from your home?")) {
+                            handleUnpair(selectedDevice._id);
+                            setSelectedDevice(null);
+                          }
+                        }}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Unpair Device
+                      </Button>
+                      <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                        Online
+                      </span>
+                    </DialogFooter>
+                  </>
+                );
+              })()}
             </>
           )}
         </DialogContent>

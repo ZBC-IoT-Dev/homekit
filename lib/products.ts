@@ -38,6 +38,16 @@ export const PRODUCTS: Product[] = [
     features: ["Instant Push Alerts", "Leak Detection", "Historical Tracking"],
   },
   {
+    id: "climatesensor",
+    name: "Climate Sensor",
+    brand: "IoT HomeKit",
+    image:
+      "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
+    description:
+      "Reliable temperature and humidity monitoring with realtime updates.",
+    features: ["Temperature Monitoring", "Humidity Monitoring", "Realtime Data"],
+  },
+  {
     id: "power",
     name: "SmartPlug Pro",
     brand: "IoT HomeKit",
@@ -58,6 +68,26 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
+function humanizeDeviceType(value: string): string {
+  return value
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resolveBackendTypeName(item: BackendDeviceType): string {
+  const normalizedKey = item.key.toLowerCase().trim();
+  const normalizedName = item.name.toLowerCase().trim();
+
+  if (!normalizedName || normalizedName === normalizedKey) {
+    return humanizeDeviceType(item.key);
+  }
+
+  return item.name;
+}
+
 export function mapBackendDeviceTypes(
   backendDeviceTypes: BackendDeviceType[],
 ): Product[] {
@@ -65,7 +95,7 @@ export function mapBackendDeviceTypes(
     .filter((item) => item.enabled !== false)
     .map((item) => ({
       id: item.key.toLowerCase().trim(),
-      name: item.name,
+      name: resolveBackendTypeName(item),
       brand: item.brand,
       image: item.image,
       description: item.description,
@@ -107,10 +137,20 @@ export function getProduct(
 ): Product {
   const normalizedType = type.toLowerCase().trim();
   const normalizedIdentifier = identifier?.toLowerCase().trim() || "";
+  const normalizedTypeAliases = new Set([normalizedType]);
+
+  if (normalizedType === "climate" || normalizedType === "climate_sensor") {
+    normalizedTypeAliases.add("climatesensor");
+  }
 
   // 1. Try exact ID match first (primary search)
   const exactMatch = sourceProducts.find(
-    (p) => p.id === normalizedType || p.id === normalizedIdentifier,
+    (p) =>
+      normalizedTypeAliases.has(p.id) ||
+      p.id === normalizedIdentifier ||
+      (p.id === "climatesensor" &&
+        (normalizedIdentifier.includes("climate") ||
+          normalizedIdentifier.includes("temp"))),
   );
   if (exactMatch) return exactMatch;
 

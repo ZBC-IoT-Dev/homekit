@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Wifi, XCircle, Activity, MoreVertical } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -33,23 +34,24 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <Card>
+      <CardContent className="p-0">
       {gateways.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-10 text-center opacity-60">
+        <div className="flex flex-col items-center justify-center py-10 text-center">
           <Wifi className="h-6 w-6 mb-2" />
-          <p className="text-sm">No gateways connected</p>
+          <p className="text-sm text-muted-foreground">No gateways connected</p>
         </div>
       ) : (
-        <div className="divide-y divide-border/30">
+        <div className="divide-y">
           {gateways.map((gateway) => (
             <div
               key={gateway._id}
-              className="flex items-center justify-between py-3 group hover:bg-muted/5 transition-colors rounded-lg px-2 -mx-2"
+              className="group flex items-center justify-between px-4 py-3"
             >
               <div className="flex items-center gap-3">
                 <div
                   className={cn(
-                    "h-8 w-8 rounded-full flex items-center justify-center border border-border/50",
+                    "flex h-8 w-8 items-center justify-center rounded-full border",
                     gateway.status === "active"
                       ? "text-green-500"
                       : "text-muted-foreground",
@@ -62,15 +64,12 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium text-sm">{gateway.name}</h4>
                     {gateway.status === "pending" && (
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] px-1.5 py-0 h-4 uppercase tracking-tighter"
-                      >
+                      <Badge variant="secondary">
                         Pending
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground opacity-70">
+                  <p className="text-xs text-muted-foreground">
                     {gateway.type || "Gateway"} •{" "}
                     {formatDistanceToNow(gateway.lastSeen)} ago
                   </p>
@@ -92,7 +91,7 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
+                        className="h-8 w-8 p-0"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
@@ -113,6 +112,7 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
           ))}
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }

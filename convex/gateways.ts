@@ -7,6 +7,31 @@ function normalizeDeviceType(type: string | undefined) {
   return normalized && normalized.length > 0 ? normalized : "other";
 }
 
+function attachGatewayToPayloadData(
+  data: unknown,
+  gatewayIdentifier: string,
+): unknown {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return data;
+  }
+
+  const record = data as Record<string, unknown>;
+  const currentHubId = record.hubId;
+  const missingHubId =
+    currentHubId === undefined ||
+    currentHubId === null ||
+    String(currentHubId).trim().length === 0;
+
+  if (!missingHubId) {
+    return data;
+  }
+
+  return {
+    ...record,
+    hubId: gatewayIdentifier,
+  };
+}
+
 // Register a new gateway (called by the Raspberry Pi)
 export const register = mutation({
   args: {
@@ -232,6 +257,10 @@ export const logDeviceData = mutation({
   },
   handler: async (ctx, args) => {
     const normalizedType = normalizeDeviceType(args.type);
+    const normalizedData = attachGatewayToPayloadData(
+      args.data,
+      args.gatewayIdentifier,
+    );
 
     // 1. Verify Gateway Exists & Get Home ID
     const gateway = await ctx.db
@@ -260,7 +289,7 @@ export const logDeviceData = mutation({
       const updates = {
         type: normalizedType,
         lastSeen: Date.now(),
-        data: args.data,
+        data: normalizedData,
         gatewayId: gateway._id,
         homeId: gateway.homeId,
       };
@@ -274,7 +303,7 @@ export const logDeviceData = mutation({
         type: normalizedType,
         status: "pending",
         lastSeen: Date.now(),
-        data: args.data,
+        data: normalizedData,
       });
     }
   },
@@ -374,9 +403,15 @@ export const pairDevice = mutation({
       throw new ConvexError("Only admins can pair devices");
     }
 
+    const gateway = await ctx.db.get(device.gatewayId);
+    const normalizedData = gateway
+      ? attachGatewayToPayloadData(device.data, gateway.identifier)
+      : device.data;
+
     await ctx.db.patch(args.deviceId, {
       status: "paired",
       name: args.name,
+      data: normalizedData,
     });
   },
 });

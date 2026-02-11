@@ -3,7 +3,6 @@
 import {
   ChevronsUpDown,
   Check,
-  Calendar,
   Home,
   Plus,
   Settings,
@@ -16,7 +15,7 @@ import {
   Monitor,
 } from "lucide-react";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -93,19 +92,16 @@ const categories = [
 export function AppSidebar() {
   /* Removed legacy auth state */
   const [createHomeOpen, setCreateHomeOpen] = useState(false);
-  const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
+  const [selectedHomeId, setSelectedHomeId] = useState<string | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    return localStorage.getItem("homekit_selected_home_id");
+  });
 
   /* Removed legacy useEffect for userId */
 
   const homes = useQuery(api.homes.getHomes);
-
-  useEffect(() => {
-    if (homes && homes.length > 0 && !selectedHomeId) {
-      const firstHome = homes[0];
-      setSelectedHomeId(firstHome._id);
-      // We can persist selection if needed, but for now simple default.
-    }
-  }, [homes, selectedHomeId]);
 
   const handleHomeChange = (homeId: string) => {
     setSelectedHomeId(homeId);
@@ -126,7 +122,7 @@ export function AppSidebar() {
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-indigo-600 text-sidebar-primary-foreground">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                     <Home className="size-4" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
