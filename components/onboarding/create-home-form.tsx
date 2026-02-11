@@ -32,14 +32,12 @@ export function CreateHomeForm() {
     <div className="flex flex-col gap-6 pt-4">
       <div className="space-y-1">
         <h2 className="text-xl font-semibold">Opret et hjem</h2>
-        <p className="text-sm text-muted-foreground">
-          Start et nyt smart home-miljo.
-        </p>
+        <p className="text-sm text-muted-foreground">Start et nyt smarthjem.</p>
       </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Hjemmenavn</Label>
+            <Label htmlFor="name">Navn på hjemmet</Label>
             <Input
               id="name"
               placeholder="Mit smarte hjem"

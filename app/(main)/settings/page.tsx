@@ -20,7 +20,7 @@ export default function SettingsPage() {
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-4 w-48" />
         </div>
-        <Skeleton className="h-[300px] w-full rounded-lg" />
+        <Skeleton className="h-72 w-full rounded-lg" />
       </div>
     );
   }
@@ -30,7 +30,7 @@ export default function SettingsPage() {
       <div className="space-y-0.5">
         <h1 className="text-2xl font-semibold tracking-tight">Indstillinger</h1>
         <p className="text-sm text-muted-foreground">
-          Administrer dit hjemmemiljo og medlemmer.
+          Administrer dit hjemmemiljø og medlemmer.
         </p>
       </div>
 

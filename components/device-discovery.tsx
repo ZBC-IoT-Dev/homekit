@@ -141,7 +141,7 @@ export function DeviceDiscovery() {
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant="secondary">Opdagelse</Badge>
                   <span className="max-w-[220px] truncate text-xs font-mono text-muted-foreground">
-                    ID: {middleTruncate(pairingDevice.identifier, 11, 4)}
+                    ID: {middleTruncate(pairingDevice.identifier, 10, 4)}
                   </span>
                 </div>
                 <DialogTitle className="text-2xl font-bold">

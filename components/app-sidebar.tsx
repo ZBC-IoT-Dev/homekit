@@ -10,6 +10,7 @@ import {
   Plus,
   Settings,
   Monitor,
+  Workflow,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -63,6 +64,11 @@ const items = [
     url: "/devices",
     icon: Monitor,
   },
+  {
+    title: "Automatiseringer",
+    url: "/automations",
+    icon: Workflow,
+  },
 ];
 
 export function AppSidebar() {
@@ -97,7 +103,9 @@ export function AppSidebar() {
   const userName = session?.user?.name?.trim() || "Bruger";
   const userEmail = session?.user?.email?.trim() || "";
   const avatarFallback =
-    userName.charAt(0).toUpperCase() || userEmail.charAt(0).toUpperCase() || "U";
+    userName.charAt(0).toUpperCase() ||
+    userEmail.charAt(0).toUpperCase() ||
+    "U";
 
   const handleSignOut = async () => {
     try {
@@ -128,7 +136,7 @@ export function AppSidebar() {
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">
-                      {selectedHome ? selectedHome.name : "Smart hjem"}
+                      {selectedHome ? selectedHome.name : "Smarthjem"}
                     </span>
                     <span className="truncate text-xs">
                       {!selectedHome && "Intet hjem valgt"}

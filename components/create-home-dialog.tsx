@@ -67,7 +67,7 @@ export function CreateHomeDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            placeholder="Hjemmenavn (f.eks. Sommerhus)"
+            placeholder="Navn på hjemmet (f.eks. Sommerhus)"
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus

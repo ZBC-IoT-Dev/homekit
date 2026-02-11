@@ -7,12 +7,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -85,7 +80,7 @@ export function HomeDetails({ home }: { home: HomeDetailsHome }) {
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="name" className="text-sm font-medium">
-                  Hjemmenavn
+                  Navn på hjemmet
                 </Label>
                 <Input
                   id="name"

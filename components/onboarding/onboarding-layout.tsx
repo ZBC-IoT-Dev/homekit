@@ -17,7 +17,7 @@ export function OnboardingLayout() {
           Velkommen til HomeKit
         </h1>
         <p className="text-muted-foreground text-lg">
-          Din rejse med smart home starter her.
+          Dit smarthjem starter her.
         </p>
       </div>
 

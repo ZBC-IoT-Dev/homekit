@@ -38,7 +38,7 @@ export default function MainLayout({
             </BreadcrumbList>
           </Breadcrumb>
         </header>
-        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 p-4">
+        <div className="mx-auto flex w-full flex-1 flex-col gap-4 p-4">
           {children}
         </div>
       </SidebarInset>

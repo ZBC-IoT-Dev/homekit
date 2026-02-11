@@ -12,6 +12,7 @@
     "@base-ui/react": "^1.1.0",
     "@convex-dev/better-auth": "^0.10.10",
     "@hookform/resolvers": "^5.2.2",
+    "@xyflow/react": "^12.10.0",
     "better-auth": "1.4.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

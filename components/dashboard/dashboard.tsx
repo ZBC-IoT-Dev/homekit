@@ -16,7 +16,7 @@ export function Dashboard({ home }: { home: DashboardHome }) {
       </div>
 
       <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-        {["Aktivitet", "Klima", "Strom"].map((title) => (
+        {["Aktivitet", "Klima", "Strøm"].map((title) => (
           <Card key={title}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -28,14 +28,14 @@ export function Dashboard({ home }: { home: DashboardHome }) {
         ))}
       </div>
 
-      <Card className="min-h-[320px]">
+      <Card className="min-h-80">
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Hjemoversigt
+            Oversigt over hjemmet
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[220px] rounded-md bg-muted" />
+          <div className="h-56 rounded-md bg-muted" />
         </CardContent>
       </Card>
     </div>

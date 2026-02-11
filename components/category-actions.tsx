@@ -64,7 +64,7 @@ export function CategoryActions({
   const handleRename = async () => {
     const nextName = name.trim();
     if (!nextName) {
-      toast.error("Kategori navn er påkrævet");
+      toast.error("Navn på kategori er påkrævet");
       return;
     }
 
@@ -106,7 +106,7 @@ export function CategoryActions({
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">Kategori handlinger</span>
+            <span className="sr-only">Kategorihandlinger</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -150,7 +150,7 @@ export function CategoryActions({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Kategori navn"
+              placeholder="Navn på kategori"
               autoFocus
             />
           </div>
@@ -165,7 +165,11 @@ export function CategoryActions({
             >
               Annuller
             </Button>
-            <Button type="button" onClick={handleRename} disabled={submittingRename}>
+            <Button
+              type="button"
+              onClick={handleRename}
+              disabled={submittingRename}
+            >
               {submittingRename ? "Gemmer..." : "Gem"}
             </Button>
           </DialogFooter>

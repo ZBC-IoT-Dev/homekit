@@ -20,35 +20,43 @@ export interface BackendDeviceType {
 export const PRODUCTS: Product[] = [
   {
     id: "temp",
-    name: "Precision Temp Sensor",
+    name: "Præcis temperatursensor",
     brand: "IoT HomeKit",
     image:
-      "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60", // Placeholder until generation works
+      "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
     description:
-      "Highly accurate temperature and humidity monitoring for any room.",
-    features: ["±0.1°C Accuracy", "5-Year Battery Life", "Instant Updates"],
+      "Meget præcis overvågning af temperatur og luftfugtighed i ethvert rum.",
+    features: [
+      "±0,1°C nøjagtighed",
+      "5 års batterilevetid",
+      "Øjeblikkelige opdateringer",
+    ],
   },
   {
     id: "humid",
-    name: "AquaGuard Humidity Sensor",
+    name: "AquaGuard luftfugtighedssensor",
     brand: "IoT HomeKit",
     image:
       "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
-    description: "Keep your home at the perfect humidity level.",
-    features: ["Instant Push Alerts", "Leak Detection", "Historical Tracking"],
+    description: "Hold dit hjem på det perfekte luftfugtighedsniveau.",
+    features: [
+      "Øjeblikkelige push-beskeder",
+      "Lækagedetektion",
+      "Historisk sporing",
+    ],
   },
   {
     id: "climatesensor",
-    name: "Climate Sensor",
+    name: "Klimasensor",
     brand: "IoT HomeKit",
     image:
       "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
     description:
-      "Reliable temperature and humidity monitoring with realtime updates.",
+      "Pålidelig overvågning af temperatur og luftfugtighed med opdateringer i realtid.",
     features: [
-      "Temperature Monitoring",
-      "Humidity Monitoring",
-      "Realtime Data",
+      "Temperaturovervågning",
+      "Luftfugtighedsovervågning",
+      "Realtidsdata",
     ],
   },
   {
@@ -57,27 +65,32 @@ export const PRODUCTS: Product[] = [
     brand: "IoT HomeKit",
     image:
       "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
-    description:
-      "Control any appliance and monitor power consumption in real-time.",
-    features: ["Power Monitoring", "Voice Control", "Schedule Automations"],
+    description: "Styr dine apparater og overvåg strømforbruget i realtid.",
+    features: ["Strømovervågning", "Stemmestyring", "Automatiske tidsplaner"],
   },
   {
     id: "onoffsensor",
-    name: "PIR Motion Sensor",
+    name: "PIR-bevægelsessensor",
     brand: "IoT HomeKit",
     image:
       "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
-    description: "Reliable PIR motion detection with near-realtime status updates.",
-    features: ["Motion Detection", "Low-Latency Updates", "Automation Ready"],
+    description:
+      "Pålidelig PIR-bevægelsesdetektering med statusopdateringer i næsten realtid.",
+    features: [
+      "Bevægelsesdetektering",
+      "Hurtige opdateringer",
+      "Klar til automatisering",
+    ],
   },
   {
     id: "other",
-    name: "Generic IoT Node",
+    name: "Generisk IoT-enhed",
     brand: "IoT HomeKit",
     image:
       "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
-    description: "A versatile IoT node for custom sensors and actuators.",
-    features: ["Customizable", "Highly Compatible", "Low Latency"],
+    description:
+      "En alsidig IoT-enhed til brugerdefinerede sensorer og aktuatorer.",
+    features: ["Kan tilpasses", "Høj kompatibilitet", "Lav latenstid"],
   },
 ];
 

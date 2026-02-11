@@ -148,7 +148,7 @@ export default function DevicesPage() {
     const normalized = key.toLowerCase();
     if (normalized === "temp") return "Temperatur";
     if (normalized === "humidity" || normalized === "humid") return "Fugtighed";
-    if (normalized === "state" || normalized === "motion") return "Bevaegelse";
+    if (normalized === "state" || normalized === "motion") return "Bevægelse";
     if (normalized === "ison") return "Sensorstatus";
     if (normalized === "id") return "Enheds-ID";
     if (normalized === "hubid") return "Hub-ID";
@@ -161,16 +161,16 @@ export default function DevicesPage() {
     const text = String(value ?? "—");
 
     if (normalized === "state") {
-      if (text.toUpperCase() === "ON") return "Bevaegelse";
-      if (text.toUpperCase() === "OFF") return "Ingen bevaegelse";
+      if (text.toUpperCase() === "ON") return "Bevægelse";
+      if (text.toUpperCase() === "OFF") return "Ingen bevægelse";
       return text;
     }
 
     if (normalized === "ison" || normalized === "motion") {
       const activeValues = new Set(["1", "true", "on", "yes"]);
       return activeValues.has(text.toLowerCase())
-        ? "Bevaegelse"
-        : "Ingen bevaegelse";
+        ? "Bevægelse"
+        : "Ingen bevægelse";
     }
 
     if (normalized === "id" || normalized === "hubid") {
@@ -222,9 +222,7 @@ export default function DevicesPage() {
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Enheder
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Enheder</h1>
         <p className="text-sm text-muted-foreground">
           Hjem: {home.name}
           {selectedCategory ? ` · ${selectedCategory.name}` : ""}

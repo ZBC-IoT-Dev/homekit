@@ -105,7 +105,7 @@ export function CreateCategoryDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Opret kategori</DialogTitle>
-          <DialogDescription>Vaelg enhedstype</DialogDescription>
+          <DialogDescription>Vælg enhedstype</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -113,7 +113,7 @@ export function CreateCategoryDialog({
             <Label htmlFor="category-name">Kategorinavn</Label>
             <Input
               id="category-name"
-              placeholder="Kategorinavn"
+              placeholder="Skriv navn på kategori"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
@@ -124,7 +124,7 @@ export function CreateCategoryDialog({
             <Label htmlFor="category-device-type">Enhedstype</Label>
             <Select value={deviceTypeKey} onValueChange={setDeviceTypeKey}>
               <SelectTrigger id="category-device-type" className="w-full">
-                <SelectValue placeholder="Vaelg enhedstype" />
+                <SelectValue placeholder="Vælg enhedstype" />
               </SelectTrigger>
               <SelectContent>
                 {options.map((option) => (
