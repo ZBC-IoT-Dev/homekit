@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 
 type TemperatureComparator = ">" | ">=" | "<" | "<=";
+const MIN_NO_MOTION_DELAY_SECONDS = 30;
 
 function normalizeRecord(data: unknown): Record<string, unknown> {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -122,6 +123,7 @@ export const upsert = mutation({
     ),
     temperatureThreshold: v.optional(v.number()),
     pirState: v.optional(v.union(v.literal("motion"), v.literal("no_motion"))),
+    pirNoMotionDelaySeconds: v.optional(v.number()),
     trueTargetDeviceId: v.id("devices"),
     trueCommand: v.union(
       v.literal("turn_on"),
@@ -163,6 +165,15 @@ export const upsert = mutation({
     if (args.triggerType === "pir" && !args.pirState) {
       throw new ConvexError("PIR automation mangler ønsket tilstand");
     }
+    if (args.triggerType === "pir" && args.pirState === "no_motion") {
+      if (
+        args.pirNoMotionDelaySeconds === undefined ||
+        !Number.isFinite(args.pirNoMotionDelaySeconds) ||
+        args.pirNoMotionDelaySeconds < MIN_NO_MOTION_DELAY_SECONDS
+      ) {
+        throw new ConvexError("Ingen-bevaegelse tid skal vaere mindst 30 sekunder");
+      }
+    }
 
     const triggerDevice = await ctx.db.get(args.triggerDeviceId);
     const trueTargetDevice = await ctx.db.get(args.trueTargetDeviceId);
@@ -199,6 +210,7 @@ export const upsert = mutation({
       temperatureComparator: args.temperatureComparator,
       temperatureThreshold: args.temperatureThreshold,
       pirState: args.pirState,
+      pirNoMotionDelaySeconds: args.pirNoMotionDelaySeconds,
       trueTargetDeviceId: args.trueTargetDeviceId,
       trueCommand: args.trueCommand,
       falseTargetDeviceId: args.falseTargetDeviceId,
@@ -272,6 +284,24 @@ export const evaluateForDeviceUpdate = mutation({
       .query("automations")
       .withIndex("by_home", (q) => q.eq("homeId", args.homeId))
       .collect();
+    const pendingCommands = await ctx.db
+      .query("gatewayCommands")
+      .withIndex("by_home", (q) => q.eq("homeId", args.homeId))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .collect();
+    const pendingByAutomation = new Map<string, Doc<"gatewayCommands">[]>();
+    const hasPendingByAutomation = new Set<string>();
+    for (const row of pendingCommands) {
+      if (!row.automationId) continue;
+      const key = row.automationId;
+      const existing = pendingByAutomation.get(key);
+      if (existing) {
+        existing.push(row);
+      } else {
+        pendingByAutomation.set(key, [row]);
+      }
+      hasPendingByAutomation.add(key);
+    }
 
     let evaluated = 0;
     let queued = 0;
@@ -286,6 +316,66 @@ export const evaluateForDeviceUpdate = mutation({
       if (automation.triggerType === "pir") {
         const motion = parseMotionValue(args.triggerData);
         if (motion === null) continue;
+        const noMotionDelaySeconds =
+          automation.pirState === "no_motion" &&
+          Number.isFinite(automation.pirNoMotionDelaySeconds)
+            ? Math.max(
+                MIN_NO_MOTION_DELAY_SECONDS,
+                Math.round(automation.pirNoMotionDelaySeconds!),
+              )
+            : 0;
+        if (noMotionDelaySeconds >= MIN_NO_MOTION_DELAY_SECONDS) {
+          const pendingForAutomation =
+            pendingByAutomation.get(automation._id) || [];
+          if (motion) {
+            if (pendingForAutomation.length > 0) {
+              await Promise.all(
+                pendingForAutomation.map((pendingRow) => ctx.db.delete(pendingRow._id)),
+              );
+              pendingByAutomation.set(automation._id, []);
+              hasPendingByAutomation.delete(automation._id);
+            }
+            if (automation.lastOutcome !== false) {
+              await ctx.db.patch(automation._id, {
+                lastOutcome: false,
+                updatedAt: Date.now(),
+              });
+            }
+            continue;
+          }
+          if (hasPendingByAutomation.has(automation._id)) {
+            continue;
+          }
+
+          const targetDevice = await ctx.db.get(automation.trueTargetDeviceId);
+          if (!targetDevice || targetDevice.homeId !== args.homeId) {
+            continue;
+          }
+          const gateway = await ctx.db.get(targetDevice.gatewayId);
+          if (!gateway || gateway.homeId !== args.homeId) {
+            continue;
+          }
+
+          const now = Date.now();
+          const executeAfter = now + noMotionDelaySeconds * 1000;
+          await ctx.db.insert("gatewayCommands", {
+            homeId: args.homeId,
+            gatewayIdentifier: gateway.identifier,
+            deviceIdentifier: targetDevice.identifier,
+            command: buildCommandPayload(automation.trueCommand),
+            status: "pending",
+            automationId: automation._id,
+            executeAfter,
+            createdAt: now,
+          });
+          hasPendingByAutomation.add(automation._id);
+          await ctx.db.patch(automation._id, {
+            lastOutcome: true,
+            updatedAt: now,
+          });
+          queued += 1;
+          continue;
+        }
         outcome = automation.pirState === "motion" ? motion : !motion;
       } else {
         const temp = parseTemperatureValue(args.triggerData);
@@ -327,6 +417,7 @@ export const evaluateForDeviceUpdate = mutation({
         command: buildCommandPayload(command),
         status: "pending",
         automationId: automation._id,
+        executeAfter: Date.now(),
         createdAt: Date.now(),
       });
 
@@ -346,6 +437,7 @@ export const pollGatewayCommands = query({
     gatewayIdentifier: v.string(),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
     const rows = await ctx.db
       .query("gatewayCommands")
       .withIndex("by_gateway_and_status", (q) =>
@@ -354,6 +446,7 @@ export const pollGatewayCommands = query({
       .collect();
 
     return rows
+      .filter((row) => !row.executeAfter || row.executeAfter <= now)
       .sort((a, b) => a.createdAt - b.createdAt)
       .slice(0, 25)
       .map((row) => ({

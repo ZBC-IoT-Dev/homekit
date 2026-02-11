@@ -78,6 +78,7 @@ export default defineSchema({
     ),
     temperatureThreshold: v.optional(v.number()),
     pirState: v.optional(v.union(v.literal("motion"), v.literal("no_motion"))),
+    pirNoMotionDelaySeconds: v.optional(v.number()),
     trueTargetDeviceId: v.id("devices"),
     trueCommand: v.union(
       v.literal("turn_on"),
@@ -100,6 +101,7 @@ export default defineSchema({
     status: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
     error: v.optional(v.string()),
     automationId: v.optional(v.id("automations")),
+    executeAfter: v.optional(v.number()),
     createdAt: v.number(),
     sentAt: v.optional(v.number()),
   })

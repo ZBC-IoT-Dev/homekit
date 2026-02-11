@@ -179,19 +179,41 @@ function TriggerNodeView({ data, selected }: NodeProps<TriggerNode>) {
         </label>
 
         {data.metric === "pir" ? (
-          <label className="block space-y-1">
-            <span className="text-muted-foreground">Status</span>
-            <select
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-              value={data.pirState}
-              onChange={(event) =>
-                data.onChange({ pirState: event.target.value as PirState })
-              }
-            >
-              <option value="on">Bevægelse registreret</option>
-              <option value="off">Ingen bevægelse</option>
-            </select>
-          </label>
+          <>
+            <label className="block space-y-1">
+              <span className="text-muted-foreground">Status</span>
+              <select
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                value={data.pirState}
+                onChange={(event) =>
+                  data.onChange({ pirState: event.target.value as PirState })
+                }
+              >
+                <option value="on">Bevægelse registreret</option>
+                <option value="off">Ingen bevægelse</option>
+              </select>
+            </label>
+            {data.pirState === "off" ? (
+              <label className="block space-y-1">
+                <span className="text-muted-foreground">Varighed uden bevægelse</span>
+                <select
+                  className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                  value={data.noMotionDelaySeconds}
+                  onChange={(event) =>
+                    data.onChange({
+                      noMotionDelaySeconds: Number(event.target.value || 30),
+                    })
+                  }
+                >
+                  {noMotionDelayOptionsSeconds.map((seconds) => (
+                    <option key={seconds} value={seconds}>
+                      {formatDurationLabel(seconds)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </>
         ) : (
           <div className="grid grid-cols-[1fr_1fr] gap-2">
             <label className="block space-y-1">
@@ -421,6 +443,7 @@ function FlowCanvas({
           comparator: ">",
           threshold: 20,
           pirState: "on",
+          noMotionDelaySeconds: 30,
           onChange: (patch) => updateTriggerNode(nodeId, patch),
         },
       };
@@ -496,6 +519,9 @@ function FlowCanvas({
                   ? Number(data.threshold)
                   : 20,
                 pirState: data.pirState === "off" ? "off" : "on",
+                noMotionDelaySeconds: Number.isFinite(Number(data.noMotionDelaySeconds))
+                  ? Math.max(30, Math.round(Number(data.noMotionDelaySeconds)))
+                  : 30,
                 onChange: (patch) => updateTriggerNode(nodeId, patch),
               },
             } satisfies TriggerNode;
@@ -674,6 +700,10 @@ function FlowCanvas({
                 ? triggerData.pirState === "on"
                   ? "motion"
                   : "no_motion"
+                : undefined,
+            pirNoMotionDelaySeconds:
+              triggerData.metric === "pir" && triggerData.pirState === "off"
+                ? Math.max(30, Math.round(triggerData.noMotionDelaySeconds))
                 : undefined,
             trueTargetDeviceId: actionData.targetId as Id<"devices">,
             trueCommand: actionData.command,
@@ -891,6 +921,12 @@ export function AutomationStudio() {
         const metrics: TriggerMetric[] = [];
         const normalizedType = device.type.toLowerCase();
         const keys = parseMetricKeys(device.data);
+        const isActuatorLike =
+          normalizedType.includes("power") ||
+          normalizedType.includes("light") ||
+          normalizedType.includes("switch") ||
+          normalizedType.includes("relay") ||
+          normalizedType.includes("onoff");
 
         if (
           normalizedType.includes("temp") ||
@@ -902,11 +938,10 @@ export function AutomationStudio() {
         }
         if (
           normalizedType.includes("pir") ||
-          normalizedType.includes("onoff") ||
           normalizedType.includes("motion") ||
-          keys.has("state") ||
           keys.has("motion") ||
-          keys.has("ison")
+          keys.has("occupancy") ||
+          (!isActuatorLike && keys.has("ison"))
         ) {
           metrics.push("pir");
         }
@@ -931,12 +966,19 @@ export function AutomationStudio() {
     return pairedDevices
       .filter((device) => {
         const normalizedType = device.type.toLowerCase();
-        return (
+        const keys = parseMetricKeys(device.data);
+        const looksLikeMotionSensor =
+          normalizedType.includes("pir") ||
+          normalizedType.includes("motion") ||
+          keys.has("motion") ||
+          keys.has("occupancy");
+        const looksLikeActuator =
           normalizedType.includes("power") ||
           normalizedType.includes("light") ||
           normalizedType.includes("switch") ||
-          normalizedType.includes("relay")
-        );
+          normalizedType.includes("relay") ||
+          normalizedType.includes("onoff");
+        return looksLikeActuator && !looksLikeMotionSensor;
       })
       .map((device) => ({
         kind: "action" as const,
