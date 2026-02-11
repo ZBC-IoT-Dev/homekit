@@ -12,6 +12,8 @@ import {
   Thermometer,
   Droplets,
   Zap,
+  Power,
+  Loader2,
   Box,
   Trash2,
   CheckCircle2,
@@ -43,6 +45,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { getProduct, mergeProductsWithBackend } from "@/lib/products";
 import { middleTruncate } from "@/lib/utils";
+import { sendHubWebSocketCommand } from "@/lib/hub-websocket";
 import Image from "next/image";
 
 type DeviceCardModel = {
@@ -79,6 +82,9 @@ export default function DevicesPage() {
     closeDetails: boolean;
   } | null>(null);
   const [unpairing, setUnpairing] = useState(false);
+  const [switchCommandLoading, setSwitchCommandLoading] = useState<
+    "on" | "off" | null
+  >(null);
   const productCatalog = useMemo(
     () => mergeProductsWithBackend(backendDeviceTypes),
     [backendDeviceTypes],
@@ -182,6 +188,44 @@ export default function DevicesPage() {
     }
 
     return text;
+  };
+
+  const isSwitchLikeDevice = (device: Pick<DeviceCardModel, "type">) => {
+    const normalizedType = device.type.toLowerCase();
+    return (
+      normalizedType.includes("power") ||
+      normalizedType.includes("light") ||
+      normalizedType.includes("switch") ||
+      normalizedType.includes("relay")
+    );
+  };
+
+  const sendLightFxCommand = async (
+    device: Pick<DeviceCardModel, "identifier">,
+    state: "ON" | "OFF",
+  ) => {
+    setSwitchCommandLoading(state === "ON" ? "on" : "off");
+    const commandAction = state === "ON" ? "light_fx_on" : "light_fx_off";
+    try {
+      const result = await sendHubWebSocketCommand({
+        deviceId: device.identifier,
+        action: commandAction,
+        command: {
+          state,
+          fx: state,
+        },
+      });
+
+      if (result.status !== "sent") {
+        throw new Error(result.error || "Command failed");
+      }
+
+      toast.success(state === "ON" ? "Lys tændt" : "Lys slukket");
+    } catch {
+      toast.error("Kunne ikke sende kommando til hub");
+    } finally {
+      setSwitchCommandLoading(null);
+    }
   };
 
   const selectDisplayTelemetryEntries = (data: unknown) => {
@@ -433,6 +477,49 @@ export default function DevicesPage() {
                           </p>
                         </div>
                       </div>
+
+                      {isSwitchLikeDevice(selectedDevice) ? (
+                        <div className="rounded-md border bg-muted/40 p-3">
+                          <p className="mb-2 text-xs text-muted-foreground">
+                            Lysstyring
+                          </p>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="flex-1 gap-2"
+                              disabled={switchCommandLoading !== null}
+                              onClick={() =>
+                                void sendLightFxCommand(selectedDevice, "ON")
+                              }
+                            >
+                              {switchCommandLoading === "on" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Power className="h-3.5 w-3.5" />
+                              )}
+                              Tænd
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 gap-2"
+                              disabled={switchCommandLoading !== null}
+                              onClick={() =>
+                                void sendLightFxCommand(selectedDevice, "OFF")
+                              }
+                            >
+                              {switchCommandLoading === "off" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Power className="h-3.5 w-3.5" />
+                              )}
+                              Sluk
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <DialogFooter className="flex items-center justify-between sm:justify-between">
