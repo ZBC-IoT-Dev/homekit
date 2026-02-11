@@ -150,33 +150,80 @@ export default function DevicesPage() {
     return <Box className="h-5 w-5 text-muted-foreground" />;
   };
 
-  const getTelemetryLabel = (key: string) => {
+  const isMotionLikeType = (type: string) => {
+    const normalizedType = type.toLowerCase();
+    return (
+      normalizedType.includes("onoffsensor") ||
+      normalizedType.includes("pir") ||
+      normalizedType.includes("motion")
+    );
+  };
+
+  const isSwitchLikeType = (type: string) => {
+    const normalizedType = type.toLowerCase();
+    return (
+      normalizedType.includes("power") ||
+      normalizedType.includes("light") ||
+      normalizedType.includes("switch") ||
+      normalizedType.includes("relay")
+    );
+  };
+
+  const getTelemetryLabel = (deviceType: string, key: string) => {
     const normalized = key.toLowerCase();
+    const isMotionDevice = isMotionLikeType(deviceType);
+    const isSwitchDevice = isSwitchLikeType(deviceType);
     if (normalized === "temp") return "Temperatur";
     if (normalized === "humidity" || normalized === "humid") return "Fugtighed";
-    if (normalized === "state" || normalized === "motion") return "Bevægelse";
-    if (normalized === "ison") return "Sensorstatus";
+    if (normalized === "state" || normalized === "motion") {
+      if (isMotionDevice) return "Bevægelse";
+      if (isSwitchDevice) return "Status";
+      return "Status";
+    }
+    if (normalized === "ison") {
+      if (isSwitchDevice) return "Status";
+      if (isMotionDevice) return "Bevægelse";
+      return "Status";
+    }
     if (normalized === "id") return "Enheds-ID";
     if (normalized === "hubid") return "Hub-ID";
     if (normalized === "type") return "Enhedstype";
     return key;
   };
 
-  const getTelemetryValue = (key: string, value: unknown) => {
+  const getTelemetryValue = (
+    deviceType: string,
+    key: string,
+    value: unknown,
+  ) => {
     const normalized = key.toLowerCase();
     const text = String(value ?? "—");
+    const normalizedText = text.toLowerCase();
+    const activeValues = new Set(["1", "true", "on", "yes"]);
+    const isActive = activeValues.has(normalizedText);
+    const isMotionDevice = isMotionLikeType(deviceType);
+    const isSwitchDevice = isSwitchLikeType(deviceType);
 
     if (normalized === "state") {
-      if (text.toUpperCase() === "ON") return "Bevægelse";
-      if (text.toUpperCase() === "OFF") return "Ingen bevægelse";
+      if (normalizedText === "on") {
+        if (isMotionDevice) return "Bevægelse";
+        if (isSwitchDevice) return "Tændt";
+      }
+      if (normalizedText === "off") {
+        if (isMotionDevice) return "Ingen bevægelse";
+        if (isSwitchDevice) return "Slukket";
+      }
       return text;
     }
 
     if (normalized === "ison" || normalized === "motion") {
-      const activeValues = new Set(["1", "true", "on", "yes"]);
-      return activeValues.has(text.toLowerCase())
-        ? "Bevægelse"
-        : "Ingen bevægelse";
+      if (normalized === "motion" || isMotionDevice) {
+        return isActive ? "Bevægelse" : "Ingen bevægelse";
+      }
+      if (isSwitchDevice) {
+        return isActive ? "Tændt" : "Slukket";
+      }
+      return isActive ? "Aktiv" : "Inaktiv";
     }
 
     if (normalized === "id" || normalized === "hubid") {
@@ -190,15 +237,8 @@ export default function DevicesPage() {
     return text;
   };
 
-  const isSwitchLikeDevice = (device: Pick<DeviceCardModel, "type">) => {
-    const normalizedType = device.type.toLowerCase();
-    return (
-      normalizedType.includes("power") ||
-      normalizedType.includes("light") ||
-      normalizedType.includes("switch") ||
-      normalizedType.includes("relay")
-    );
-  };
+  const isSwitchLikeDevice = (device: Pick<DeviceCardModel, "type">) =>
+    isSwitchLikeType(device.type);
 
   const sendLightFxCommand = async (
     device: Pick<DeviceCardModel, "identifier">,
@@ -249,9 +289,23 @@ export default function DevicesPage() {
     const byKey = new Map(
       entries.map(([key, value]) => [key.toLowerCase(), [key, value] as const]),
     );
+    const statusLikeKeys = new Set(["state", "ison", "motion"]);
+    let hasAddedStatusLikeEntry = false;
 
     return preferredOrder
-      .map((key) => byKey.get(key))
+      .map((key) => {
+        if (statusLikeKeys.has(key)) {
+          if (hasAddedStatusLikeEntry) {
+            return undefined;
+          }
+          const entry = byKey.get(key);
+          if (entry) {
+            hasAddedStatusLikeEntry = true;
+          }
+          return entry;
+        }
+        return byKey.get(key);
+      })
       .filter((entry): entry is readonly [string, unknown] => Boolean(entry));
   };
 
@@ -336,13 +390,13 @@ export default function DevicesPage() {
                             className="rounded-md border bg-muted/40 p-2"
                           >
                             <span className="text-xs text-muted-foreground">
-                              {getTelemetryLabel(k)}
+                              {getTelemetryLabel(device.type, k)}
                             </span>
                             <p
                               title={String(v)}
                               className="truncate text-sm font-medium tabular-nums"
                             >
-                              {getTelemetryValue(k, v)}
+                              {getTelemetryValue(device.type, k, v)}
                             </p>
                           </div>
                         ),
@@ -436,13 +490,15 @@ export default function DevicesPage() {
                                 ) : (
                                   <Activity className="h-3 w-3" />
                                 )}
-                                <span>{getTelemetryLabel(k)}</span>
+                                <span>
+                                  {getTelemetryLabel(selectedDevice.type, k)}
+                                </span>
                               </div>
                               <p
                                 title={String(v)}
                                 className="truncate text-lg font-semibold tabular-nums"
                               >
-                                {getTelemetryValue(k, v)}
+                                {getTelemetryValue(selectedDevice.type, k, v)}
                               </p>
                             </div>
                           ))
