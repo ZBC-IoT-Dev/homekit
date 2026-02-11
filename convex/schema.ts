@@ -67,4 +67,42 @@ export default defineSchema({
   })
     .index("by_home", ["homeId"])
     .index("by_home_and_slug", ["homeId", "slug"]),
+  automations: defineTable({
+    homeId: v.id("homes"),
+    name: v.string(),
+    enabled: v.boolean(),
+    triggerType: v.union(v.literal("pir"), v.literal("temperature")),
+    triggerDeviceId: v.id("devices"),
+    temperatureComparator: v.optional(
+      v.union(v.literal(">"), v.literal(">="), v.literal("<"), v.literal("<=")),
+    ),
+    temperatureThreshold: v.optional(v.number()),
+    pirState: v.optional(v.union(v.literal("motion"), v.literal("no_motion"))),
+    trueTargetDeviceId: v.id("devices"),
+    trueCommand: v.union(
+      v.literal("turn_on"),
+      v.literal("turn_off"),
+      v.literal("toggle"),
+    ),
+    falseTargetDeviceId: v.optional(v.id("devices")),
+    falseCommand: v.optional(
+      v.union(v.literal("turn_on"), v.literal("turn_off"), v.literal("toggle")),
+    ),
+    lastOutcome: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_home", ["homeId"]),
+  gatewayCommands: defineTable({
+    homeId: v.id("homes"),
+    gatewayIdentifier: v.string(),
+    deviceIdentifier: v.string(),
+    command: v.any(),
+    status: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
+    error: v.optional(v.string()),
+    automationId: v.optional(v.id("automations")),
+    createdAt: v.number(),
+    sentAt: v.optional(v.number()),
+  })
+    .index("by_gateway_and_status", ["gatewayIdentifier", "status"])
+    .index("by_home", ["homeId"]),
 });

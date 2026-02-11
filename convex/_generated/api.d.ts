@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as automations from "../automations.js";
 import type * as categories from "../categories.js";
 import type * as deviceTypes from "../deviceTypes.js";
 import type * as gateways from "../gateways.js";
@@ -22,6 +23,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  automations: typeof automations;
   categories: typeof categories;
   deviceTypes: typeof deviceTypes;
   gateways: typeof gateways;

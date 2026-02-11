@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { ConvexError } from "convex/values";
+import { api } from "./_generated/api";
 
 function normalizeDeviceType(type: string | undefined) {
   const normalized = type?.toLowerCase().trim();
@@ -305,6 +306,16 @@ export const logDeviceData = mutation({
         lastSeen: Date.now(),
         data: normalizedData,
       });
+    }
+
+    try {
+      await ctx.runMutation(api.automations.evaluateForDeviceUpdate, {
+        homeId: gateway.homeId,
+        triggerDeviceIdentifier: args.identifier,
+        triggerData: normalizedData,
+      });
+    } catch (error) {
+      console.error("Automation evaluation failed:", error);
     }
   },
 });

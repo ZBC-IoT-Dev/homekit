@@ -19,7 +19,8 @@ import {
   type NodeProps,
   MarkerType,
 } from "@xyflow/react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import type { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +36,6 @@ import { toast } from "sonner";
 import {
   Activity,
   ArrowRight,
-  Droplets,
   Lightbulb,
   Play,
   Plus,
@@ -44,8 +44,8 @@ import {
   Zap,
 } from "lucide-react";
 
-type TriggerMetric = "temperature" | "humidity" | "pir";
-type Comparator = ">" | ">=" | "<" | "<=" | "==" | "!=";
+type TriggerMetric = "temperature" | "pir";
+type Comparator = ">" | ">=" | "<" | "<=";
 type PirState = "on" | "off";
 type ActionCommand = "turn_on" | "turn_off" | "toggle";
 
@@ -65,12 +65,14 @@ type ActionOption = {
 
 type TriggerNodeData = {
   title: string;
+  deviceId: string;
   deviceName: string;
   metric: TriggerMetric;
   metricOptions: TriggerMetric[];
   comparator: Comparator;
   threshold: number;
   pirState: PirState;
+  noMotionDelaySeconds: number;
   onChange: (patch: Partial<Omit<TriggerNodeData, "onChange">>) => void;
 };
 
@@ -99,12 +101,34 @@ type PaletteItem =
       targetName: string;
     };
 
-const comparatorOptions: Comparator[] = [">", ">=", "<", "<=", "==", "!="];
+type PersistedCanvasPayload = {
+  nodes?: unknown;
+  edges?: unknown;
+};
+
+type SavedAutomationRow = {
+  _id: Id<"automations">;
+};
+
+const comparatorOptions: Comparator[] = [">", ">=", "<", "<="];
 const actionOptions: ActionCommand[] = ["turn_on", "turn_off", "toggle"];
+const noMotionDelayOptionsSeconds = [
+  30,
+  60,
+  120,
+  300,
+  600,
+  900,
+  1800,
+  3600,
+  7200,
+  21600,
+  43200,
+  86400,
+];
 
 const metricLabel: Record<TriggerMetric, string> = {
   temperature: "Temperatur",
-  humidity: "Fugtighed",
   pir: "PIR",
 };
 
@@ -115,7 +139,7 @@ const commandLabel: Record<ActionCommand, string> = {
 };
 
 function isTriggerMetric(value: unknown): value is TriggerMetric {
-  return value === "temperature" || value === "humidity" || value === "pir";
+  return value === "temperature" || value === "pir";
 }
 
 function TriggerNodeView({ data, selected }: NodeProps<TriggerNode>) {
@@ -138,7 +162,7 @@ function TriggerNodeView({ data, selected }: NodeProps<TriggerNode>) {
       </p>
       <div className="space-y-2 text-xs">
         <label className="block space-y-1">
-          <span className="text-muted-foreground">Måling</span>
+          <span className="text-muted-foreground">Type</span>
           <select
             className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
             value={data.metric}
@@ -267,7 +291,7 @@ const nodeTypes = {
 };
 
 function parseMetricKeys(data: unknown): Set<string> {
-  if (!data || typeof data !== "object") {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
     return new Set();
   }
   return new Set(
@@ -280,8 +304,6 @@ function parseMetricKeys(data: unknown): Set<string> {
 function metricIcon(metric: TriggerMetric) {
   if (metric === "temperature")
     return <Thermometer className="h-4 w-4 text-orange-500" />;
-  if (metric === "humidity")
-    return <Droplets className="h-4 w-4 text-blue-500" />;
   return <Activity className="h-4 w-4 text-violet-500" />;
 }
 
@@ -289,12 +311,22 @@ function getDeviceLabel(device: Pick<DeviceLike, "name" | "identifier">) {
   return device.name?.trim() || device.identifier;
 }
 
+function formatDurationLabel(seconds: number) {
+  if (seconds < 60) return `${seconds} sekunder`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} minutter`;
+  const hours = seconds / 3600;
+  if (Number.isInteger(hours)) return `${hours} timer`;
+  return `${hours.toFixed(1)} timer`;
+}
+
 function buildTriggerText(data: TriggerNodeData) {
   if (data.metric === "pir") {
+    if (data.pirState === "off") {
+      return `${data.deviceName}: Ingen bevægelse i ${formatDurationLabel(data.noMotionDelaySeconds)}`;
+    }
     return `${data.deviceName}: PIR er ${data.pirState === "on" ? "ON" : "OFF"}`;
   }
-  const unit = data.metric === "temperature" ? "°C" : "%";
-  return `${data.deviceName}: ${metricLabel[data.metric]} ${data.comparator} ${data.threshold}${unit}`;
+  return `${data.deviceName}: Temperatur ${data.comparator} ${data.threshold}°C`;
 }
 
 function buildActionText(data: ActionNodeData) {
@@ -308,11 +340,17 @@ function FlowCanvas({
   sensorPalette,
   actionPalette,
   storageKey,
+  homeId,
+  existingAutomations,
 }: {
   sensorPalette: Array<Extract<PaletteItem, { kind: "trigger" }>>;
   actionPalette: Array<Extract<PaletteItem, { kind: "action" }>>;
   storageKey: string;
+  homeId: Id<"homes">;
+  existingAutomations: SavedAutomationRow[];
 }) {
+  const upsertAutomation = useMutation(api.automations.upsert);
+  const removeAutomation = useMutation(api.automations.remove);
   const targetOptions: ActionOption[] = useMemo(
     () =>
       actionPalette.map((item) => ({
@@ -325,6 +363,7 @@ function FlowCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState<AutomationNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const idCounter = useRef(1);
   const hasLoadedFromStorage = useRef(false);
   const { screenToFlowPosition, getViewport } = useReactFlow();
@@ -375,11 +414,12 @@ function FlowCanvas({
         position: { x, y },
         data: {
           title: "Sensor-trigger",
+          deviceId: item.deviceId,
           deviceName: item.deviceName,
           metric: defaultMetric,
           metricOptions: item.metrics,
           comparator: ">",
-          threshold: defaultMetric === "humidity" ? 60 : 20,
+          threshold: 20,
           pirState: "on",
           onChange: (patch) => updateTriggerNode(nodeId, patch),
         },
@@ -411,26 +451,17 @@ function FlowCanvas({
 
   const hydrateNodes = useCallback(
     (rawNodes: unknown): AutomationNode[] => {
-      if (!Array.isArray(rawNodes)) {
-        return [];
-      }
-
+      if (!Array.isArray(rawNodes)) return [];
       return rawNodes
         .map((rawNode) => {
-          if (!rawNode || typeof rawNode !== "object") {
-            return null;
-          }
-
+          if (!rawNode || typeof rawNode !== "object") return null;
           const node = rawNode as Record<string, unknown>;
           const nodeId = String(node.id ?? "");
           const nodeType = String(node.type ?? "");
           const rawPosition = (node.position as Record<string, unknown>) || {};
           const x = Number(rawPosition.x);
           const y = Number(rawPosition.y);
-
-          if (!nodeId || !Number.isFinite(x) || !Number.isFinite(y)) {
-            return null;
-          }
+          if (!nodeId || !Number.isFinite(x) || !Number.isFinite(y)) return null;
 
           if (nodeType === "triggerNode") {
             const data = (node.data as Record<string, unknown>) || {};
@@ -446,17 +477,16 @@ function FlowCanvas({
             const metric: TriggerMetric = isTriggerMetric(data.metric)
               ? data.metric
               : metricOptions[0] || "temperature";
-
             return {
               id: nodeId,
               type: "triggerNode",
               position: { x, y },
               data: {
                 title: String(data.title ?? "Sensor-trigger"),
+                deviceId: String(data.deviceId ?? ""),
                 deviceName: String(data.deviceName ?? "Ukendt sensor"),
                 metric,
-                metricOptions:
-                  metricOptions.length > 0 ? metricOptions : ["temperature"],
+                metricOptions,
                 comparator: comparatorOptions.includes(
                   data.comparator as Comparator,
                 )
@@ -464,9 +494,7 @@ function FlowCanvas({
                   : ">",
                 threshold: Number.isFinite(Number(data.threshold))
                   ? Number(data.threshold)
-                  : metric === "humidity"
-                    ? 60
-                    : 20,
+                  : 20,
                 pirState: data.pirState === "off" ? "off" : "on",
                 onChange: (patch) => updateTriggerNode(nodeId, patch),
               },
@@ -477,7 +505,6 @@ function FlowCanvas({
             const data = (node.data as Record<string, unknown>) || {};
             const selectedTarget = String(data.targetId ?? "");
             const defaultTarget = targetOptions[0]?.id || "";
-
             return {
               id: nodeId,
               type: "actionNode",
@@ -493,7 +520,6 @@ function FlowCanvas({
               },
             } satisfies ActionNode;
           }
-
           return null;
         })
         .filter((node): node is AutomationNode => Boolean(node));
@@ -502,29 +528,18 @@ function FlowCanvas({
   );
 
   useEffect(() => {
-    if (typeof window === "undefined" || hasLoadedFromStorage.current) {
-      return;
-    }
-
+    if (typeof window === "undefined" || hasLoadedFromStorage.current) return;
     hasLoadedFromStorage.current = true;
-
     const payload = localStorage.getItem(`automation_flow_${storageKey}`);
-    if (!payload) {
-      return;
-    }
-
+    if (!payload) return;
     try {
-      const parsed = JSON.parse(payload) as {
-        nodes?: unknown;
-        edges?: unknown;
-      };
+      const parsed = JSON.parse(payload) as PersistedCanvasPayload;
       setNodes(hydrateNodes(parsed.nodes));
-
       if (Array.isArray(parsed.edges)) {
         setEdges(parsed.edges as Edge[]);
       }
     } catch {
-      toast.error("Kunne ikke indlæse gemte automations");
+      toast.error("Kunne ikke indlæse gemte noder");
     }
   }, [hydrateNodes, setEdges, setNodes, storageKey]);
 
@@ -535,7 +550,6 @@ function FlowCanvas({
         const selectedTargetExists = targetOptions.some(
           (option) => option.id === node.data.targetId,
         );
-
         return {
           ...node,
           data: {
@@ -551,24 +565,12 @@ function FlowCanvas({
   }, [setNodes, targetOptions]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !hasLoadedFromStorage.current) {
-      return;
-    }
-
+    if (typeof window === "undefined" || !hasLoadedFromStorage.current) return;
     const serializableNodes = nodes.map((node) => {
-      if (node.type === "triggerNode") {
-        const { onChange, ...data } = node.data;
-        void onChange;
-        return { ...node, data };
-      }
-      if (node.type === "actionNode") {
-        const { onChange, ...data } = node.data;
-        void onChange;
-        return { ...node, data };
-      }
-      return node;
+      const { onChange, ...data } = node.data;
+      void onChange;
+      return { ...node, data };
     });
-
     localStorage.setItem(
       `automation_flow_${storageKey}`,
       JSON.stringify({
@@ -584,9 +586,7 @@ function FlowCanvas({
         addEdge(
           {
             ...params,
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-            },
+            markerEnd: { type: MarkerType.ArrowClosed },
             animated: true,
           },
           currentEdges,
@@ -615,29 +615,89 @@ function FlowCanvas({
       .map((edge) => {
         const source = nodes.find((node) => node.id === edge.source);
         const target = nodes.find((node) => node.id === edge.target);
-
         if (!source || !target) return null;
-        if (source.type !== "triggerNode" || target.type !== "actionNode")
-          return null;
-
+        if (source.type !== "triggerNode" || target.type !== "actionNode") return null;
         return {
           id: edge.id,
+          triggerNode: source,
+          actionNode: target,
           trigger: buildTriggerText(source.data),
           action: buildActionText(target.data),
         };
       })
       .filter(
-        (entry): entry is { id: string; trigger: string; action: string } =>
-          Boolean(entry),
+        (
+          entry,
+        ): entry is {
+          id: string;
+          triggerNode: TriggerNode;
+          actionNode: ActionNode;
+          trigger: string;
+          action: string;
+        } => Boolean(entry),
       );
   }, [edges, nodes]);
+
+  const saveAutomationsToBackend = useCallback(async () => {
+    if (rules.length === 0) {
+      toast.error("Forbind mindst én trigger til en action");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await Promise.all(
+        existingAutomations.map((row) =>
+          removeAutomation({
+            automationId: row._id,
+          }),
+        ),
+      );
+
+      await Promise.all(
+        rules.map((rule, index) => {
+          const triggerData = rule.triggerNode.data;
+          const actionData = rule.actionNode.data;
+          return upsertAutomation({
+            homeId,
+            name: `Regel ${index + 1}`,
+            enabled: true,
+            triggerType: triggerData.metric === "pir" ? "pir" : "temperature",
+            triggerDeviceId: triggerData.deviceId as Id<"devices">,
+            temperatureComparator:
+              triggerData.metric === "temperature"
+                ? triggerData.comparator
+                : undefined,
+            temperatureThreshold:
+              triggerData.metric === "temperature" ? triggerData.threshold : undefined,
+            pirState:
+              triggerData.metric === "pir"
+                ? triggerData.pirState === "on"
+                  ? "motion"
+                  : "no_motion"
+                : undefined,
+            trueTargetDeviceId: actionData.targetId as Id<"devices">,
+            trueCommand: actionData.command,
+            falseTargetDeviceId: undefined,
+            falseCommand: undefined,
+          });
+        }),
+      );
+
+      toast.success("Automations gemt og aktive");
+      setIsSheetOpen(false);
+    } catch {
+      toast.error("Kunne ikke gemme automations");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [existingAutomations, homeId, removeAutomation, rules, upsertAutomation]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div className="absolute left-3 top-3 z-20">
         <Badge variant="secondary" className="gap-2">
           <Workflow className="h-3.5 w-3.5" />
-          Hele canvas er din legeplads
+          React Flow builder
         </Badge>
       </div>
 
@@ -654,8 +714,8 @@ function FlowCanvas({
             <SheetHeader>
               <SheetTitle>Tilføj noder</SheetTitle>
               <SheetDescription>
-                Vælg trigger- eller action-noder og indsæt dem direkte på
-                canvas.
+                Byg flows for PIR og temperatur. Vil du have if/else, så lav to regler
+                med modsat betingelse.
               </SheetDescription>
             </SheetHeader>
 
@@ -695,7 +755,7 @@ function FlowCanvas({
                   ))}
                   {sensorPalette.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      Ingen sensorsignaler fundet.
+                      Ingen PIR/temperatur-enheder fundet.
                     </p>
                   ) : null}
                 </div>
@@ -725,7 +785,7 @@ function FlowCanvas({
                   ))}
                   {actionPalette.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      Ingen styrbare enheder fundet.
+                      Ingen lys/switch enheder fundet.
                     </p>
                   ) : null}
                 </div>
@@ -747,27 +807,21 @@ function FlowCanvas({
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => {
-                      toast.success(
-                        "Automations gemt lokalt (backend-kørsel kommer næste skridt)",
-                      );
-                      setIsSheetOpen(false);
-                    }}
-                    disabled={rules.length === 0}
+                    onClick={() => void saveAutomationsToBackend()}
+                    disabled={rules.length === 0 || isSaving}
                   >
-                    Gem automations
+                    {isSaving ? "Gemmer..." : "Gem automations"}
                   </Button>
                 </div>
               </div>
 
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Aktive regler
+                  Aktive regler i canvas
                 </p>
                 {rules.length === 0 ? (
                   <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                    Forbind en trigger-node til en action-node for at bygge en
-                    regel.
+                    Forbind en trigger-node til en action-node.
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -818,6 +872,10 @@ export function AutomationStudio() {
     api.gateways.getHomeDevices,
     home ? { homeId: home._id } : "skip",
   );
+  const existingAutomations = useQuery(
+    api.automations.list,
+    home ? { homeId: home._id } : "skip",
+  ) as SavedAutomationRow[] | undefined;
 
   const pairedDevices = useMemo(
     () =>
@@ -837,17 +895,10 @@ export function AutomationStudio() {
         if (
           normalizedType.includes("temp") ||
           normalizedType.includes("climate") ||
-          keys.has("temp")
+          keys.has("temp") ||
+          keys.has("temperature")
         ) {
           metrics.push("temperature");
-        }
-        if (
-          normalizedType.includes("humid") ||
-          normalizedType.includes("climate") ||
-          keys.has("humidity") ||
-          keys.has("humid")
-        ) {
-          metrics.push("humidity");
         }
         if (
           normalizedType.includes("pir") ||
@@ -894,13 +945,19 @@ export function AutomationStudio() {
       }));
   }, [pairedDevices]);
 
+  if (!home) {
+    return <div className="flex min-h-[calc(100vh-10rem)] flex-1" />;
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-10rem)] flex-1 flex-col">
       <ReactFlowProvider>
         <FlowCanvas
           sensorPalette={sensorPalette}
           actionPalette={actionPalette}
-          storageKey={home?._id || "default"}
+          storageKey={home._id}
+          homeId={home._id}
+          existingAutomations={existingAutomations || []}
         />
       </ReactFlowProvider>
     </div>

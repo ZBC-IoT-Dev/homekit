@@ -192,6 +192,73 @@ http.route({
 
 // 7. List enabled device types (for product catalog in UI)
 http.route({
+  path: "/api/gateways/commands",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const gatewayIdentifier = url.searchParams.get("gatewayIdentifier");
+
+    if (!gatewayIdentifier) {
+      return new Response(
+        JSON.stringify({ error: "Missing gatewayIdentifier query parameter" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    try {
+      const rows = await ctx.runQuery(api.automations.pollGatewayCommands, {
+        gatewayIdentifier,
+      });
+      return new Response(JSON.stringify(rows), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }),
+});
+
+http.route({
+  path: "/api/gateways/commands/ack",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const { commandId, gatewayIdentifier, status, error } = await request.json();
+    if (status !== "sent" && status !== "failed") {
+      return new Response(JSON.stringify({ error: "Invalid status" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    try {
+      const result = await ctx.runMutation(api.automations.ackGatewayCommand, {
+        commandId,
+        gatewayIdentifier,
+        status,
+        error,
+      });
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }),
+});
+
+// 8. List enabled device types (for product catalog in UI)
+http.route({
   path: "/api/device-types",
   method: "GET",
   handler: httpAction(async (ctx) => {
@@ -210,7 +277,7 @@ http.route({
   }),
 });
 
-// 8. Upsert a device type (admin tooling / dashboard)
+// 9. Upsert a device type (admin tooling / dashboard)
 http.route({
   path: "/api/device-types",
   method: "POST",
