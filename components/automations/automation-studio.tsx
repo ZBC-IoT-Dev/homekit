@@ -190,7 +190,7 @@ function TriggerNodeView({ data, selected }: NodeProps<TriggerNode>) {
                 }
               >
                 <option value="on">Bevægelse registreret</option>
-                <option value="off">Ingen bevægelse</option>
+                <option value="off">Ingen bevægelse (med timer)</option>
               </select>
             </label>
             {data.pirState === "off" ? (
@@ -212,7 +212,11 @@ function TriggerNodeView({ data, selected }: NodeProps<TriggerNode>) {
                   ))}
                 </select>
               </label>
-            ) : null}
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Skift til "Ingen bevægelse" for at aktivere timer.
+              </p>
+            )}
           </>
         ) : (
           <div className="grid grid-cols-[1fr_1fr] gap-2">
@@ -358,6 +362,13 @@ function buildActionText(data: ActionNodeData) {
   return `${commandLabel[data.command]} ${targetLabel}`;
 }
 
+function extractNodeCounter(id: string) {
+  const match = id.match(/-(\d+)$/);
+  if (!match) return 0;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function FlowCanvas({
   sensorPalette,
   actionPalette,
@@ -442,7 +453,7 @@ function FlowCanvas({
           metricOptions: item.metrics,
           comparator: ">",
           threshold: 20,
-          pirState: "on",
+          pirState: defaultMetric === "pir" ? "off" : "on",
           noMotionDelaySeconds: 30,
           onChange: (patch) => updateTriggerNode(nodeId, patch),
         },
@@ -475,18 +486,42 @@ function FlowCanvas({
   const hydrateNodes = useCallback(
     (rawNodes: unknown): AutomationNode[] => {
       if (!Array.isArray(rawNodes)) return [];
+      let nextCounter =
+        rawNodes.reduce((max, rawNode) => {
+          if (!rawNode || typeof rawNode !== "object") return max;
+          const rawId = String((rawNode as Record<string, unknown>).id ?? "");
+          return Math.max(max, extractNodeCounter(rawId));
+        }, 0) + 1;
+      const seenNodeIds = new Set<string>();
+      const ensureUniqueNodeId = (
+        requestedId: string,
+        nodeType: "triggerNode" | "actionNode",
+      ) => {
+        if (requestedId && !seenNodeIds.has(requestedId)) {
+          seenNodeIds.add(requestedId);
+          return requestedId;
+        }
+        const prefix = nodeType === "triggerNode" ? "trigger" : "action";
+        let generatedId = `${prefix}-${nextCounter++}`;
+        while (seenNodeIds.has(generatedId)) {
+          generatedId = `${prefix}-${nextCounter++}`;
+        }
+        seenNodeIds.add(generatedId);
+        return generatedId;
+      };
       return rawNodes
         .map((rawNode) => {
           if (!rawNode || typeof rawNode !== "object") return null;
           const node = rawNode as Record<string, unknown>;
-          const nodeId = String(node.id ?? "");
+          const rawNodeId = String(node.id ?? "");
           const nodeType = String(node.type ?? "");
           const rawPosition = (node.position as Record<string, unknown>) || {};
           const x = Number(rawPosition.x);
           const y = Number(rawPosition.y);
-          if (!nodeId || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+          if (!rawNodeId || !Number.isFinite(x) || !Number.isFinite(y)) return null;
 
           if (nodeType === "triggerNode") {
+            const nodeId = ensureUniqueNodeId(rawNodeId, "triggerNode");
             const data = (node.data as Record<string, unknown>) || {};
             const parsedMetricOptions: TriggerMetric[] = Array.isArray(
               data.metricOptions,
@@ -518,7 +553,7 @@ function FlowCanvas({
                 threshold: Number.isFinite(Number(data.threshold))
                   ? Number(data.threshold)
                   : 20,
-                pirState: data.pirState === "off" ? "off" : "on",
+                pirState: metric === "pir" ? (data.pirState === "on" ? "on" : "off") : "on",
                 noMotionDelaySeconds: Number.isFinite(Number(data.noMotionDelaySeconds))
                   ? Math.max(30, Math.round(Number(data.noMotionDelaySeconds)))
                   : 30,
@@ -528,6 +563,7 @@ function FlowCanvas({
           }
 
           if (nodeType === "actionNode") {
+            const nodeId = ensureUniqueNodeId(rawNodeId, "actionNode");
             const data = (node.data as Record<string, unknown>) || {};
             const selectedTarget = String(data.targetId ?? "");
             const defaultTarget = targetOptions[0]?.id || "";
@@ -560,7 +596,13 @@ function FlowCanvas({
     if (!payload) return;
     try {
       const parsed = JSON.parse(payload) as PersistedCanvasPayload;
-      setNodes(hydrateNodes(parsed.nodes));
+      const hydratedNodes = hydrateNodes(parsed.nodes);
+      idCounter.current =
+        hydratedNodes.reduce(
+          (max, node) => Math.max(max, extractNodeCounter(node.id)),
+          0,
+        ) + 1;
+      setNodes(hydratedNodes);
       if (Array.isArray(parsed.edges)) {
         setEdges(parsed.edges as Edge[]);
       }
@@ -921,6 +963,14 @@ export function AutomationStudio() {
         const metrics: TriggerMetric[] = [];
         const normalizedType = device.type.toLowerCase();
         const keys = parseMetricKeys(device.data);
+        const normalizedLabel = getDeviceLabel(device).toLowerCase();
+        const isMotionLikeDevice =
+          normalizedType.includes("pir") ||
+          normalizedType.includes("motion") ||
+          normalizedLabel.includes("pir") ||
+          normalizedLabel.includes("motion") ||
+          keys.has("motion") ||
+          keys.has("occupancy");
         const isActuatorLike =
           normalizedType.includes("power") ||
           normalizedType.includes("light") ||
@@ -937,11 +987,8 @@ export function AutomationStudio() {
           metrics.push("temperature");
         }
         if (
-          normalizedType.includes("pir") ||
-          normalizedType.includes("motion") ||
-          keys.has("motion") ||
-          keys.has("occupancy") ||
-          (!isActuatorLike && keys.has("ison"))
+          isMotionLikeDevice ||
+          (!isActuatorLike && (keys.has("ison") || keys.has("state")))
         ) {
           metrics.push("pir");
         }
@@ -967,9 +1014,12 @@ export function AutomationStudio() {
       .filter((device) => {
         const normalizedType = device.type.toLowerCase();
         const keys = parseMetricKeys(device.data);
+        const normalizedLabel = getDeviceLabel(device).toLowerCase();
         const looksLikeMotionSensor =
           normalizedType.includes("pir") ||
           normalizedType.includes("motion") ||
+          normalizedLabel.includes("pir") ||
+          normalizedLabel.includes("motion") ||
           keys.has("motion") ||
           keys.has("occupancy");
         const looksLikeActuator =
