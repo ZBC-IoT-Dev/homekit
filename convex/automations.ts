@@ -48,13 +48,49 @@ function parseMotionValue(data: unknown): boolean | null {
 
 function parseTemperatureValue(data: unknown): number | null {
   const payload = normalizeRecord(data);
-  const candidates = ["temp", "temperature"];
+  const lowerKeyMap = new Map<string, unknown>();
+  for (const [key, value] of Object.entries(payload)) {
+    lowerKeyMap.set(key.toLowerCase(), value);
+  }
+
+  const candidates = [
+    "temp",
+    "temperature",
+    "tempc",
+    "temperaturec",
+    "celsius",
+    "temperature_c",
+    "temp_c",
+  ];
   for (const key of candidates) {
-    if (key in payload) {
-      const value = Number(payload[key]);
-      if (Number.isFinite(value)) {
-        return value;
-      }
+    const value = Number(lowerKeyMap.get(key));
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  for (const [key, rawValue] of lowerKeyMap.entries()) {
+    if (!key.includes("temp") && !key.includes("celsius")) {
+      continue;
+    }
+    // Ignore Fahrenheit by default to keep thresholds in Celsius.
+    if (key.includes("tempf") || key.includes("fahrenheit")) {
+      continue;
+    }
+    const value = Number(rawValue);
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  const nestedCandidates = ["payload", "data", "sensor", "readings"];
+  for (const nestedKey of nestedCandidates) {
+    const nested = lowerKeyMap.get(nestedKey);
+    const nestedRecord = normalizeRecord(nested);
+    if (Object.keys(nestedRecord).length === 0) continue;
+    const nestedParsed = parseTemperatureValue(nestedRecord);
+    if (nestedParsed !== null) {
+      return nestedParsed;
     }
   }
   return null;

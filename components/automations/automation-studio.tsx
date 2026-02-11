@@ -327,6 +327,15 @@ function parseMetricKeys(data: unknown): Set<string> {
   );
 }
 
+function hasTemperatureLikeKey(keys: Set<string>) {
+  for (const key of keys) {
+    if (key.includes("temp") || key.includes("celsius")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function metricIcon(metric: TriggerMetric) {
   if (metric === "temperature")
     return <Thermometer className="h-4 w-4 text-orange-500" />;
@@ -982,7 +991,8 @@ export function AutomationStudio() {
           normalizedType.includes("temp") ||
           normalizedType.includes("climate") ||
           keys.has("temp") ||
-          keys.has("temperature")
+          keys.has("temperature") ||
+          hasTemperatureLikeKey(keys)
         ) {
           metrics.push("temperature");
         }
