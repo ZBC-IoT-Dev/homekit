@@ -1,9 +1,14 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { authComponent, createAuth } from "./betterAuth/auth";
 
 const http = httpRouter();
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown error";
+}
 
 authComponent.registerRoutes(http, createAuth);
 
@@ -25,8 +30,8 @@ http.route({
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
@@ -49,8 +54,8 @@ http.route({
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
@@ -83,15 +88,15 @@ http.route({
     try {
       // This will use the auth token from the request header automatically if present
       const result = await ctx.runQuery(api.gateways.get, {
-        homeId: homeId ? (homeId as any) : undefined,
+        homeId: homeId ? (homeId as Id<"homes">) : undefined,
         inviteCode: inviteCode || undefined,
       });
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
         status: 401, // Likely unauthenticated or unauthorized
         headers: { "Content-Type": "application/json" },
       });
@@ -115,8 +120,8 @@ http.route({
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
@@ -142,9 +147,95 @@ http.route({
       });
 
       return new Response(JSON.stringify({ success: true }), { status: 200 });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
         status: 500,
+      });
+    }
+  }),
+});
+
+// 6. Gateway device sync (for durable remembered pairing on hub)
+http.route({
+  path: "/api/gateways/devices",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const gatewayIdentifier = url.searchParams.get("gatewayIdentifier");
+
+    if (!gatewayIdentifier) {
+      return new Response(
+        JSON.stringify({ error: "Missing gatewayIdentifier query parameter" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    try {
+      const result = await ctx.runQuery(api.gateways.getGatewayPairedDevices, {
+        gatewayIdentifier,
+      });
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }),
+});
+
+// 7. List enabled device types (for product catalog in UI)
+http.route({
+  path: "/api/device-types",
+  method: "GET",
+  handler: httpAction(async (ctx) => {
+    try {
+      const result = await ctx.runQuery(api.deviceTypes.listEnabled, {});
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }),
+});
+
+// 8. Upsert a device type (admin tooling / dashboard)
+http.route({
+  path: "/api/device-types",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const { key, name, brand, image, description, features, enabled } =
+      await request.json();
+
+    try {
+      const result = await ctx.runMutation(api.deviceTypes.upsert, {
+        key,
+        name,
+        brand,
+        image,
+        description,
+        features,
+        enabled,
+      });
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: unknown) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
       });
     }
   }),

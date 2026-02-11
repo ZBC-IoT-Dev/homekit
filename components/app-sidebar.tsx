@@ -13,6 +13,7 @@ import {
   Lock,
   Camera,
   Speaker,
+  Monitor,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
@@ -50,9 +51,9 @@ const items = [
     icon: Home,
   },
   {
-    title: "Add Device",
-    url: "/add-device",
-    icon: Plus,
+    title: "Devices",
+    url: "/devices",
+    icon: Monitor,
   },
 ];
 

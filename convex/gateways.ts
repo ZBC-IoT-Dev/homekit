@@ -2,6 +2,11 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { ConvexError } from "convex/values";
 
+function normalizeDeviceType(type: string | undefined) {
+  const normalized = type?.toLowerCase().trim();
+  return normalized && normalized.length > 0 ? normalized : "other";
+}
+
 // Register a new gateway (called by the Raspberry Pi)
 export const register = mutation({
   args: {
@@ -226,6 +231,8 @@ export const logDeviceData = mutation({
     gatewayIdentifier: v.string(), // Required to link to Home
   },
   handler: async (ctx, args) => {
+    const normalizedType = normalizeDeviceType(args.type);
+
     // 1. Verify Gateway Exists & Get Home ID
     const gateway = await ctx.db
       .query("gateways")
@@ -249,18 +256,23 @@ export const logDeviceData = mutation({
       .first();
 
     if (existingDevice) {
-      await ctx.db.patch(existingDevice._id, {
+      // Don't change status if it's already paired
+      const updates = {
+        type: normalizedType,
         lastSeen: Date.now(),
         data: args.data,
         gatewayId: gateway._id,
         homeId: gateway.homeId,
-      });
+      };
+
+      await ctx.db.patch(existingDevice._id, updates);
     } else {
       await ctx.db.insert("devices", {
         identifier: args.identifier,
         gatewayId: gateway._id,
         homeId: gateway.homeId,
-        type: args.type,
+        type: normalizedType,
+        status: "pending",
         lastSeen: Date.now(),
         data: args.data,
       });
@@ -297,5 +309,110 @@ export const getHomeDevices = query({
       .query("devices")
       .withIndex("by_home", (q) => q.eq("homeId", args.homeId))
       .collect();
+  },
+});
+
+// Gateway-facing query for syncing paired device memory on boot/reconnect.
+export const getGatewayPairedDevices = query({
+  args: {
+    gatewayIdentifier: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const gateway = await ctx.db
+      .query("gateways")
+      .withIndex("by_identifier", (q) => q.eq("identifier", args.gatewayIdentifier))
+      .first();
+
+    if (!gateway) {
+      return [];
+    }
+
+    const homeDevices = await ctx.db
+      .query("devices")
+      .withIndex("by_home", (q) => q.eq("homeId", gateway.homeId))
+      .collect();
+
+    return homeDevices
+      .filter((device) => device.status === "paired")
+      .map((device) => ({
+        identifier: device.identifier,
+        type: device.type,
+        name: device.name,
+        lastSeen: device.lastSeen,
+      }));
+  },
+});
+
+export const pairDevice = mutation({
+  args: {
+    deviceId: v.id("devices"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Unauthenticated");
+    }
+
+    const device = await ctx.db.get(args.deviceId);
+    if (!device) {
+      throw new ConvexError("Device not found");
+    }
+
+    // Check permissions (same as updateStatus/remove)
+    const home = await ctx.db.get(device.homeId);
+    if (!home) throw new ConvexError("Home not found");
+
+    const isOwner = home.userId === identity.subject;
+    const membership = await ctx.db
+      .query("home_members")
+      .withIndex("by_home", (q) => q.eq("homeId", device.homeId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first();
+
+    if (!isOwner && membership?.role !== "admin") {
+      throw new ConvexError("Only admins can pair devices");
+    }
+
+    await ctx.db.patch(args.deviceId, {
+      status: "paired",
+      name: args.name,
+    });
+  },
+});
+
+export const unpairDevice = mutation({
+  args: {
+    deviceId: v.id("devices"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Unauthenticated");
+    }
+
+    const device = await ctx.db.get(args.deviceId);
+    if (!device) {
+      throw new ConvexError("Device not found");
+    }
+
+    // Check permissions
+    const home = await ctx.db.get(device.homeId);
+    if (!home) throw new ConvexError("Home not found");
+
+    const isOwner = home.userId === identity.subject;
+    const membership = await ctx.db
+      .query("home_members")
+      .withIndex("by_home", (q) => q.eq("homeId", device.homeId))
+      .filter((q) => q.eq(q.field("userId"), identity.subject))
+      .first();
+
+    if (!isOwner && membership?.role !== "admin") {
+      throw new ConvexError("Only admins can unpair devices");
+    }
+
+    // We can either delete it or set status back to pending
+    // Let's delete it so it can be re-discovered if it pulses again
+    await ctx.db.delete(args.deviceId);
   },
 });

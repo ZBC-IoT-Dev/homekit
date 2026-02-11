@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as deviceTypes from "../deviceTypes.js";
 import type * as gateways from "../gateways.js";
 import type * as homes from "../homes.js";
 import type * as http from "../http.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  deviceTypes: typeof deviceTypes;
   gateways: typeof gateways;
   homes: typeof homes;
   http: typeof http;

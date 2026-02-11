@@ -13,6 +13,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 
+import { DeviceDiscovery } from "@/components/device-discovery";
+
 export default function MainLayout({
   children,
 }: {
@@ -38,6 +40,7 @@ export default function MainLayout({
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-4">{children}</div>
       </SidebarInset>
+      <DeviceDiscovery />
     </SidebarProvider>
   );
 }
