@@ -3,6 +3,8 @@ import { mutation, query } from "./_generated/server";
 import { ConvexError } from "convex/values";
 import { api } from "./_generated/api";
 
+const DEVICE_OFFLINE_AFTER_MS = 60 * 1000;
+
 function normalizeDeviceType(type: string | undefined) {
   const normalized = type?.toLowerCase().trim();
   return normalized && normalized.length > 0 ? normalized : "other";
@@ -323,6 +325,7 @@ export const logDeviceData = mutation({
 export const getHomeDevices = query({
   args: {
     homeId: v.id("homes"),
+    nowMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Auth check optional if we assume component handles it, but better to be safe
@@ -345,10 +348,20 @@ export const getHomeDevices = query({
       }
     }
 
-    return await ctx.db
+    const devices = await ctx.db
       .query("devices")
       .withIndex("by_home", (q) => q.eq("homeId", args.homeId))
       .collect();
+
+    const referenceNowMs =
+      args.nowMs !== undefined && Number.isFinite(args.nowMs)
+        ? args.nowMs
+        : Date.now();
+
+    return devices.map((device) => ({
+      ...device,
+      isOnline: referenceNowMs - device.lastSeen < DEVICE_OFFLINE_AFTER_MS,
+    }));
   },
 });
 

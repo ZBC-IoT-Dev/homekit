@@ -19,7 +19,7 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,6 +53,7 @@ type DeviceCardModel = {
   identifier: string;
   type: string;
   status: "pending" | "paired";
+  isOnline: boolean;
   name?: string;
   lastSeen: number;
   data?: unknown;
@@ -60,11 +61,12 @@ type DeviceCardModel = {
 
 export default function DevicesPage() {
   const searchParams = useSearchParams();
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const home = useQuery(api.homes.getHome);
   const categorySlug = searchParams.get("category");
   const devices = useQuery(
     api.gateways.getHomeDevices,
-    home ? { homeId: home._id } : "skip",
+    home ? { homeId: home._id, nowMs } : "skip",
   );
   const selectedCategory = useQuery(
     api.categories.getBySlug,
@@ -89,6 +91,18 @@ export default function DevicesPage() {
     () => mergeProductsWithBackend(backendDeviceTypes),
     [backendDeviceTypes],
   );
+  const selectedDeviceLive = useMemo(() => {
+    if (!selectedDevice) return null;
+    const matchedDevice = devices?.find((device) => device._id === selectedDevice._id);
+    return (matchedDevice ?? selectedDevice) as DeviceCardModel;
+  }, [devices, selectedDevice]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 15_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const resolveDevicePresentation = (device: DeviceCardModel) => {
     const product = getProduct(device.type, device.identifier, productCatalog);
@@ -240,6 +254,11 @@ export default function DevicesPage() {
   const isSwitchLikeDevice = (device: Pick<DeviceCardModel, "type">) =>
     isSwitchLikeType(device.type);
 
+  const getPresenceUi = (isOnline: boolean) =>
+    isOnline
+      ? { label: "Online", dotClassName: "bg-green-500" }
+      : { label: "Offline", dotClassName: "bg-muted-foreground" };
+
   const sendLightFxCommand = async (
     device: Pick<DeviceCardModel, "identifier">,
     state: "ON" | "OFF",
@@ -330,7 +349,7 @@ export default function DevicesPage() {
       <div className="flex items-center gap-2">
         <CheckCircle2 className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-medium">
-          {selectedCategory ? selectedCategory.name : "Aktive enheder"}
+          {selectedCategory ? selectedCategory.name : "Parrede enheder"}
         </h2>
       </div>
 
@@ -342,13 +361,14 @@ export default function DevicesPage() {
               <p className="text-sm text-muted-foreground">
                 {selectedCategory
                   ? "Ingen enheder i denne kategori endnu."
-                  : "Ingen aktive enheder endnu."}
+                  : "Ingen parrede enheder endnu."}
               </p>
             </CardContent>
           </Card>
         ) : (
           filteredDevices.map((device) => {
             const { displayName } = resolveDevicePresentation(device);
+            const presenceUi = getPresenceUi(device.isOnline);
 
             return (
               <Card
@@ -423,8 +443,10 @@ export default function DevicesPage() {
                       })}
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <span className="h-2 w-2 rounded-full bg-green-500" />
-                      Online
+                      <span
+                        className={`h-2 w-2 rounded-full ${presenceUi.dotClassName}`}
+                      />
+                      {presenceUi.label}
                     </span>
                   </div>
                 </CardContent>
@@ -435,15 +457,16 @@ export default function DevicesPage() {
       </div>
 
       <Dialog
-        open={!!selectedDevice}
+        open={!!selectedDeviceLive}
         onOpenChange={(open) => !open && setSelectedDevice(null)}
       >
         <DialogContent className="sm:max-w-xl">
-          {selectedDevice && (
+          {selectedDeviceLive && (
             <>
               {(() => {
                 const { product, displayName } =
-                  resolveDevicePresentation(selectedDevice);
+                  resolveDevicePresentation(selectedDeviceLive);
+                const presenceUi = getPresenceUi(selectedDeviceLive.isOnline);
 
                 return (
                   <>
@@ -451,7 +474,7 @@ export default function DevicesPage() {
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">{product.brand}</Badge>
                         <span className="max-w-[220px] truncate text-xs font-mono text-muted-foreground">
-                          {middleTruncate(selectedDevice.identifier, 11, 4)}
+                          {middleTruncate(selectedDeviceLive.identifier, 11, 4)}
                         </span>
                       </div>
                       <DialogTitle>{displayName}</DialogTitle>
@@ -472,10 +495,10 @@ export default function DevicesPage() {
                       </div>
 
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {selectDisplayTelemetryEntries(selectedDevice.data)
+                        {selectDisplayTelemetryEntries(selectedDeviceLive.data)
                           .length > 0 ? (
                           selectDisplayTelemetryEntries(
-                            selectedDevice.data,
+                            selectedDeviceLive.data,
                           ).map(([k, v]) => (
                             <div
                               key={k}
@@ -491,14 +514,14 @@ export default function DevicesPage() {
                                   <Activity className="h-3 w-3" />
                                 )}
                                 <span>
-                                  {getTelemetryLabel(selectedDevice.type, k)}
+                                  {getTelemetryLabel(selectedDeviceLive.type, k)}
                                 </span>
                               </div>
                               <p
                                 title={String(v)}
                                 className="truncate text-lg font-semibold tabular-nums"
                               >
-                                {getTelemetryValue(selectedDevice.type, k, v)}
+                                {getTelemetryValue(selectedDeviceLive.type, k, v)}
                               </p>
                             </div>
                           ))
@@ -508,7 +531,7 @@ export default function DevicesPage() {
                               Status
                             </span>
                             <p className="text-base font-medium">
-                              {String(selectedDevice.data || "Aktiv")}
+                              {String(selectedDeviceLive.data || "Aktiv")}
                             </p>
                           </div>
                         )}
@@ -526,7 +549,7 @@ export default function DevicesPage() {
                             Sidst set
                           </p>
                           <p className="text-sm font-medium">
-                            {formatDistanceToNow(selectedDevice.lastSeen, {
+                            {formatDistanceToNow(selectedDeviceLive.lastSeen, {
                               addSuffix: true,
                               locale: da,
                             })}
@@ -534,7 +557,7 @@ export default function DevicesPage() {
                         </div>
                       </div>
 
-                      {isSwitchLikeDevice(selectedDevice) ? (
+                      {isSwitchLikeDevice(selectedDeviceLive) ? (
                         <div className="rounded-md border bg-muted/40 p-3">
                           <p className="mb-2 text-xs text-muted-foreground">
                             Lysstyring
@@ -546,7 +569,7 @@ export default function DevicesPage() {
                               className="flex-1 gap-2"
                               disabled={switchCommandLoading !== null}
                               onClick={() =>
-                                void sendLightFxCommand(selectedDevice, "ON")
+                                void sendLightFxCommand(selectedDeviceLive, "ON")
                               }
                             >
                               {switchCommandLoading === "on" ? (
@@ -563,7 +586,7 @@ export default function DevicesPage() {
                               className="flex-1 gap-2"
                               disabled={switchCommandLoading !== null}
                               onClick={() =>
-                                void sendLightFxCommand(selectedDevice, "OFF")
+                                void sendLightFxCommand(selectedDeviceLive, "OFF")
                               }
                             >
                               {switchCommandLoading === "off" ? (
@@ -583,7 +606,7 @@ export default function DevicesPage() {
                         variant="ghost"
                         onClick={() => {
                           setUnpairTarget({
-                            id: selectedDevice._id,
+                            id: selectedDeviceLive._id,
                             closeDetails: true,
                           });
                         }}
@@ -592,8 +615,10 @@ export default function DevicesPage() {
                         Fjern parring
                       </Button>
                       <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="h-2 w-2 rounded-full bg-green-500" />
-                        Online
+                        <span
+                          className={`h-2 w-2 rounded-full ${presenceUi.dotClassName}`}
+                        />
+                        {presenceUi.label}
                       </span>
                     </DialogFooter>
                   </>
