@@ -47,53 +47,91 @@ function parseMotionValue(data: unknown): boolean | null {
 }
 
 function parseTemperatureValue(data: unknown): number | null {
-  const payload = normalizeRecord(data);
-  const lowerKeyMap = new Map<string, unknown>();
-  for (const [key, value] of Object.entries(payload)) {
-    lowerKeyMap.set(key.toLowerCase(), value);
-  }
-
-  const candidates = [
-    "temp",
-    "temperature",
-    "tempc",
-    "temperaturec",
-    "celsius",
-    "temperature_c",
-    "temp_c",
-  ];
-  for (const key of candidates) {
-    const value = Number(lowerKeyMap.get(key));
-    if (Number.isFinite(value)) {
+  const parseNumberLike = (value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) {
       return value;
     }
-  }
+    if (typeof value === "string") {
+      // Accept values like "19.5", "19,5", or "19.5 C".
+      const normalized = value.trim().replace(",", ".");
+      const direct = Number(normalized);
+      if (Number.isFinite(direct)) {
+        return direct;
+      }
+      const match = normalized.match(/-?\d+(?:\.\d+)?/);
+      if (match) {
+        const extracted = Number(match[0]);
+        if (Number.isFinite(extracted)) {
+          return extracted;
+        }
+      }
+    }
+    return null;
+  };
 
-  for (const [key, rawValue] of lowerKeyMap.entries()) {
-    if (!key.includes("temp") && !key.includes("celsius")) {
-      continue;
+  const parseFromUnknown = (input: unknown, depth: number): number | null => {
+    if (depth > 3) {
+      return null;
     }
-    // Ignore Fahrenheit by default to keep thresholds in Celsius.
-    if (key.includes("tempf") || key.includes("fahrenheit")) {
-      continue;
-    }
-    const value = Number(rawValue);
-    if (Number.isFinite(value)) {
-      return value;
-    }
-  }
 
-  const nestedCandidates = ["payload", "data", "sensor", "readings"];
-  for (const nestedKey of nestedCandidates) {
-    const nested = lowerKeyMap.get(nestedKey);
-    const nestedRecord = normalizeRecord(nested);
-    if (Object.keys(nestedRecord).length === 0) continue;
-    const nestedParsed = parseTemperatureValue(nestedRecord);
-    if (nestedParsed !== null) {
-      return nestedParsed;
+    const directNumber = parseNumberLike(input);
+    if (directNumber !== null) {
+      return directNumber;
     }
-  }
-  return null;
+
+    const payload = normalizeRecord(input);
+    if (Object.keys(payload).length === 0) {
+      return null;
+    }
+
+    const lowerKeyMap = new Map<string, unknown>();
+    for (const [key, value] of Object.entries(payload)) {
+      lowerKeyMap.set(key.toLowerCase(), value);
+    }
+
+    const candidates = [
+      "temp",
+      "temperature",
+      "tempc",
+      "temperaturec",
+      "celsius",
+      "temperature_c",
+      "temp_c",
+      "value",
+    ];
+    for (const key of candidates) {
+      const parsed = parseFromUnknown(lowerKeyMap.get(key), depth + 1);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+
+    for (const [key, rawValue] of lowerKeyMap.entries()) {
+      if (!key.includes("temp") && !key.includes("celsius")) {
+        continue;
+      }
+      // Ignore Fahrenheit by default to keep thresholds in Celsius.
+      if (key.includes("tempf") || key.includes("fahrenheit")) {
+        continue;
+      }
+      const parsed = parseFromUnknown(rawValue, depth + 1);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+
+    const nestedCandidates = ["payload", "data", "sensor", "readings"];
+    for (const nestedKey of nestedCandidates) {
+      const parsed = parseFromUnknown(lowerKeyMap.get(nestedKey), depth + 1);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+
+    return null;
+  };
+
+  return parseFromUnknown(data, 0);
 }
 
 function compareTemperature(
