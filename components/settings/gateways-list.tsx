@@ -10,17 +10,31 @@ import { Wifi, XCircle, Activity, MoreVertical } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
   const gateways = useQuery(api.gateways.get, { homeId });
   const updateStatus = useMutation(api.gateways.updateStatus);
   const removeGateway = useMutation(api.gateways.remove);
+  const [gatewayToRemove, setGatewayToRemove] = useState<Id<"gateways"> | null>(
+    null,
+  );
 
   if (!gateways) return null;
 
@@ -28,15 +42,18 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
     await updateStatus({ gatewayId, status: "active" });
   };
 
-  const handleReject = async (gatewayId: Id<"gateways">) => {
-    if (confirm("Fjern gateway?")) {
-      await removeGateway({ gatewayId });
+  const handleReject = async () => {
+    if (!gatewayToRemove) {
+      return;
     }
+    await removeGateway({ gatewayId: gatewayToRemove });
+    setGatewayToRemove(null);
   };
 
   return (
-    <Card>
-      <CardContent className="p-0">
+    <>
+      <Card>
+        <CardContent className="p-0">
       {gateways.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <Wifi className="h-6 w-6 mb-2" />
@@ -105,7 +122,7 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
-                        onClick={() => handleReject(gateway._id)}
+                        onClick={() => setGatewayToRemove(gateway._id)}
                       >
                         <XCircle className="h-3.5 w-3.5 mr-2" />
                         Fjern
@@ -118,7 +135,32 @@ export function GatewaysList({ homeId }: { homeId: Id<"homes"> }) {
           ))}
         </div>
       )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <AlertDialog
+        open={gatewayToRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setGatewayToRemove(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fjern gateway?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Gatewayen bliver fjernet fra hjemmet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuller</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleReject}>
+              Fjern
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

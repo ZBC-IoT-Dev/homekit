@@ -5,9 +5,10 @@ import { api } from "@/convex/_generated/api";
 import { HomeDetails } from "@/components/settings/home-details";
 import { MembersList } from "@/components/settings/members-list";
 import { GatewaysList } from "@/components/settings/gateways-list";
+import { CategoriesList } from "@/components/settings/categories-list";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Router } from "lucide-react";
+import { Settings, Users, Router, Folder } from "lucide-react";
 
 export default function SettingsPage() {
   const home = useQuery(api.homes.getHome);
@@ -34,7 +35,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="mb-4 grid w-full grid-cols-3">
+        <TabsList className="mb-4 grid w-full grid-cols-4">
           <TabsTrigger value="general" className="gap-1.5">
             <Settings className="h-3.5 w-3.5" />
             Generelt
@@ -46,6 +47,10 @@ export default function SettingsPage() {
           <TabsTrigger value="gateways" className="gap-1.5">
             <Router className="h-3.5 w-3.5" />
             Gateways
+          </TabsTrigger>
+          <TabsTrigger value="categories" className="gap-1.5">
+            <Folder className="h-3.5 w-3.5" />
+            Kategorier
           </TabsTrigger>
         </TabsList>
 
@@ -59,6 +64,10 @@ export default function SettingsPage() {
 
         <TabsContent value="gateways" className="mt-0 outline-none">
           <GatewaysList homeId={home._id} />
+        </TabsContent>
+
+        <TabsContent value="categories" className="mt-0 outline-none">
+          <CategoriesList homeId={home._id} />
         </TabsContent>
       </Tabs>
     </div>

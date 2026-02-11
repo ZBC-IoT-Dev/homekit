@@ -28,6 +28,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -64,6 +74,11 @@ export default function DevicesPage() {
   const [selectedDevice, setSelectedDevice] = useState<DeviceCardModel | null>(
     null,
   );
+  const [unpairTarget, setUnpairTarget] = useState<{
+    id: Id<"devices">;
+    closeDetails: boolean;
+  } | null>(null);
+  const [unpairing, setUnpairing] = useState(false);
   const productCatalog = useMemo(
     () => mergeProductsWithBackend(backendDeviceTypes),
     [backendDeviceTypes],
@@ -96,12 +111,18 @@ export default function DevicesPage() {
   const pairedDevices = devices.filter((d) => d.status === "paired");
 
   const handleUnpair = async (deviceId: Id<"devices">) => {
-    if (!confirm("Er du sikker på, at du vil fjerne denne enhed?")) return;
     try {
+      setUnpairing(true);
       await unpairDevice({ deviceId });
       toast.success("Enhed fjernet");
+      if (unpairTarget?.closeDetails) {
+        setSelectedDevice(null);
+      }
+      setUnpairTarget(null);
     } catch {
       toast.error("Kunne ikke fjerne enhed");
+    } finally {
+      setUnpairing(false);
     }
   };
 
@@ -224,7 +245,7 @@ export default function DevicesPage() {
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleUnpair(device._id);
+                      setUnpairTarget({ id: device._id, closeDetails: false });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -387,10 +408,10 @@ export default function DevicesPage() {
                       <Button
                         variant="ghost"
                         onClick={() => {
-                          if (confirm("Fjern denne enhed fra dit hjem?")) {
-                            handleUnpair(selectedDevice._id);
-                            setSelectedDevice(null);
-                          }
+                          setUnpairTarget({
+                            id: selectedDevice._id,
+                            closeDetails: true,
+                          });
                         }}
                         className="text-destructive hover:text-destructive"
                       >
@@ -408,6 +429,34 @@ export default function DevicesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={unpairTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUnpairTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fjern enhed?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Er du sikker på, at du vil fjerne denne enhed fra dit hjem?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuller</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => unpairTarget && handleUnpair(unpairTarget.id)}
+              disabled={unpairing}
+            >
+              {unpairing ? "Fjerner..." : "Fjern"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

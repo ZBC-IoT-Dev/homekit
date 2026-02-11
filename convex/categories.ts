@@ -1,5 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 
 function normalizeName(value: string) {
   return value.trim();
@@ -16,6 +18,30 @@ function slugify(value: string) {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+}
+
+async function requireCategoryAdminAccess(
+  ctx: MutationCtx,
+  homeId: Id<"homes">,
+  userId: string,
+) {
+  const home = await ctx.db.get(homeId);
+  if (!home) {
+    throw new ConvexError("Home not found");
+  }
+
+  const membership = await ctx.db
+    .query("home_members")
+    .withIndex("by_home", (q) => q.eq("homeId", homeId))
+    .filter((q) => q.eq(q.field("userId"), userId))
+    .first();
+
+  const isOwner = home.userId === userId;
+  if (!isOwner && membership?.role !== "admin") {
+    throw new ConvexError("Only admins can manage categories");
+  }
+
+  return home;
 }
 
 export const listByHome = query({
@@ -87,21 +113,7 @@ export const create = mutation({
       throw new ConvexError("Unauthenticated");
     }
 
-    const home = await ctx.db.get(args.homeId);
-    if (!home) {
-      throw new ConvexError("Home not found");
-    }
-
-    const membership = await ctx.db
-      .query("home_members")
-      .withIndex("by_home", (q) => q.eq("homeId", args.homeId))
-      .filter((q) => q.eq(q.field("userId"), identity.subject))
-      .first();
-
-    const isOwner = home.userId === identity.subject;
-    if (!isOwner && membership?.role !== "admin") {
-      throw new ConvexError("Only admins can create categories");
-    }
+    await requireCategoryAdminAccess(ctx, args.homeId, identity.subject);
 
     const normalizedName = normalizeName(args.name);
     const normalizedDeviceTypeKey = normalizeKey(args.deviceTypeKey);
@@ -163,5 +175,81 @@ export const create = mutation({
     });
 
     return id;
+  },
+});
+
+export const rename = mutation({
+  args: {
+    categoryId: v.id("categories"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Unauthenticated");
+    }
+
+    const category = await ctx.db.get(args.categoryId);
+    if (!category) {
+      throw new ConvexError("Category not found");
+    }
+
+    await requireCategoryAdminAccess(ctx, category.homeId, identity.subject);
+
+    const normalizedName = normalizeName(args.name);
+    if (!normalizedName) {
+      throw new ConvexError("Category name is required");
+    }
+
+    const baseSlug = slugify(normalizedName);
+    if (!baseSlug) {
+      throw new ConvexError("Category name is invalid");
+    }
+
+    let slug = baseSlug;
+    let suffix = 1;
+    while (true) {
+      const existing = await ctx.db
+        .query("categories")
+        .withIndex("by_home_and_slug", (q) =>
+          q.eq("homeId", category.homeId).eq("slug", slug),
+        )
+        .first();
+      if (!existing || existing._id === args.categoryId) {
+        break;
+      }
+      suffix += 1;
+      slug = `${baseSlug}-${suffix}`;
+    }
+
+    await ctx.db.patch(args.categoryId, {
+      name: normalizedName,
+      slug,
+      updatedAt: Date.now(),
+    });
+
+    return args.categoryId;
+  },
+});
+
+export const remove = mutation({
+  args: {
+    categoryId: v.id("categories"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Unauthenticated");
+    }
+
+    const category = await ctx.db.get(args.categoryId);
+    if (!category) {
+      throw new ConvexError("Category not found");
+    }
+
+    await requireCategoryAdminAccess(ctx, category.homeId, identity.subject);
+    await ctx.db.delete(args.categoryId);
+
+    return args.categoryId;
   },
 });

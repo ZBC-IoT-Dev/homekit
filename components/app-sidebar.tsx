@@ -6,13 +6,14 @@ import {
   ChevronsUpDown,
   Folder,
   Home,
+  LogOut,
   Plus,
   Settings,
   Monitor,
 } from "lucide-react";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -32,6 +33,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { CategoryActions } from "@/components/category-actions";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 import {
   Sidebar,
@@ -72,7 +77,10 @@ export function AppSidebar() {
 
   const homes = useQuery(api.homes.getHomes);
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = authClient.useSession();
+  const [signingOut, setSigningOut] = useState(false);
 
   const handleHomeChange = (homeId: string) => {
     setSelectedHomeId(homeId);
@@ -86,6 +94,23 @@ export function AppSidebar() {
     selectedHome ? { homeId: selectedHome._id } : "skip",
   );
   const selectedCategorySlug = searchParams.get("category");
+  const userName = session?.user?.name?.trim() || "Bruger";
+  const userEmail = session?.user?.email?.trim() || "";
+  const avatarFallback =
+    userName.charAt(0).toUpperCase() || userEmail.charAt(0).toUpperCase() || "U";
+
+  const handleSignOut = async () => {
+    try {
+      setSigningOut(true);
+      await authClient.signOut();
+      router.push("/sign-in");
+      router.refresh();
+    } catch {
+      toast.error("Kunne ikke logge ud");
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   return (
     <Sidebar collapsible="icon" variant="inset">
@@ -209,10 +234,28 @@ export function AppSidebar() {
                           selectedCategorySlug === category.slug
                         }
                       >
-                        <Link href={`/devices?category=${category.slug}`}>
-                          <Folder />
-                          <span>{category.name}</span>
-                        </Link>
+                        <div className="flex w-full items-center gap-1">
+                          <Link
+                            href={`/devices?category=${category.slug}`}
+                            className="flex min-w-0 flex-1 items-center gap-2"
+                          >
+                            <Folder />
+                            <span className="truncate">{category.name}</span>
+                          </Link>
+                          <CategoryActions
+                            categoryId={category._id}
+                            categoryName={category.name}
+                            triggerClassName="h-6 w-6"
+                            onRemoved={() => {
+                              if (
+                                pathname === "/devices" &&
+                                selectedCategorySlug === category.slug
+                              ) {
+                                router.push("/devices");
+                              }
+                            }}
+                          />
+                        </div>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
@@ -235,6 +278,30 @@ export function AppSidebar() {
                 <span>Indstillinger</span>
               </Link>
             </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <div className="flex items-center gap-2 rounded-md px-2 py-2">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={session?.user?.image ?? ""} alt={userName} />
+                <AvatarFallback>{avatarFallback}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{userName}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {userEmail || "Ingen email"}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="h-8 px-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="sr-only">Log ud</span>
+              </Button>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
