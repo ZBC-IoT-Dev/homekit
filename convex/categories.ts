@@ -136,6 +136,7 @@ export const create = mutation({
       "climatesensor",
       "climate",
       "climate_sensor",
+      "onoffsensor",
       "power",
       "other",
     ]);

@@ -134,6 +134,13 @@ export default function DevicesPage() {
       return <Droplets className="h-5 w-5 text-blue-500" />;
     if (type.includes("power"))
       return <Zap className="h-5 w-5 text-yellow-500" />;
+    if (
+      type.includes("onoffsensor") ||
+      type.includes("pir") ||
+      type.includes("motion")
+    ) {
+      return <Activity className="h-5 w-5 text-violet-500" />;
+    }
     return <Box className="h-5 w-5 text-muted-foreground" />;
   };
 
@@ -141,7 +148,10 @@ export default function DevicesPage() {
     const normalized = key.toLowerCase();
     if (normalized === "temp") return "Temperatur";
     if (normalized === "humidity" || normalized === "humid") return "Fugtighed";
+    if (normalized === "state" || normalized === "motion") return "Bevaegelse";
+    if (normalized === "ison") return "Sensorstatus";
     if (normalized === "id") return "Enheds-ID";
+    if (normalized === "hubid") return "Hub-ID";
     if (normalized === "type") return "Enhedstype";
     return key;
   };
@@ -149,6 +159,19 @@ export default function DevicesPage() {
   const getTelemetryValue = (key: string, value: unknown) => {
     const normalized = key.toLowerCase();
     const text = String(value ?? "—");
+
+    if (normalized === "state") {
+      if (text.toUpperCase() === "ON") return "Bevaegelse";
+      if (text.toUpperCase() === "OFF") return "Ingen bevaegelse";
+      return text;
+    }
+
+    if (normalized === "ison" || normalized === "motion") {
+      const activeValues = new Set(["1", "true", "on", "yes"]);
+      return activeValues.has(text.toLowerCase())
+        ? "Bevaegelse"
+        : "Ingen bevaegelse";
+    }
 
     if (normalized === "id" || normalized === "hubid") {
       return middleTruncate(text);
@@ -167,7 +190,17 @@ export default function DevicesPage() {
     }
 
     const entries = Object.entries(data);
-    const preferredOrder = ["humidity", "humid", "temp", "id", "type"];
+    const preferredOrder = [
+      "state",
+      "ison",
+      "motion",
+      "humidity",
+      "humid",
+      "temp",
+      "id",
+      "hubid",
+      "type",
+    ];
 
     const byKey = new Map(
       entries.map(([key, value]) => [key.toLowerCase(), [key, value] as const]),

@@ -45,7 +45,11 @@ export const PRODUCTS: Product[] = [
       "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
     description:
       "Reliable temperature and humidity monitoring with realtime updates.",
-    features: ["Temperature Monitoring", "Humidity Monitoring", "Realtime Data"],
+    features: [
+      "Temperature Monitoring",
+      "Humidity Monitoring",
+      "Realtime Data",
+    ],
   },
   {
     id: "power",
@@ -56,6 +60,15 @@ export const PRODUCTS: Product[] = [
     description:
       "Control any appliance and monitor power consumption in real-time.",
     features: ["Power Monitoring", "Voice Control", "Schedule Automations"],
+  },
+  {
+    id: "onoffsensor",
+    name: "PIR Motion Sensor",
+    brand: "IoT HomeKit",
+    image:
+      "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&auto=format&fit=crop&q=60",
+    description: "Reliable PIR motion detection with near-realtime status updates.",
+    features: ["Motion Detection", "Low-Latency Updates", "Automation Ready"],
   },
   {
     id: "other",
