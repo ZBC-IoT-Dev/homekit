@@ -51,7 +51,9 @@ export function MembersList({ homeId }: { homeId: Id<"homes"> }) {
         <CardContent className="p-0">
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <Users className="mb-2 h-6 w-6" />
-            <p className="text-sm text-muted-foreground">Ingen medlemmer endnu</p>
+            <p className="text-sm text-muted-foreground">
+              Ingen medlemmer endnu
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -61,7 +63,7 @@ export function MembersList({ homeId }: { homeId: Id<"homes"> }) {
   return (
     <Card>
       <CardContent className="divide-y p-0">
-        {users.map((user) => {
+        {users.map((user: UserRecord) => {
           const typedUser = user as UserRecord;
           const member = (members as MemberRecord[]).find(
             (m) => m.userId === typedUser.userId,
@@ -86,9 +88,7 @@ export function MembersList({ homeId }: { homeId: Id<"homes"> }) {
                     {typedUser.name}
                   </p>
                   {isAdmin && (
-                    <span className="text-xs text-muted-foreground">
-                      Admin
-                    </span>
+                    <span className="text-xs text-muted-foreground">Admin</span>
                   )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
