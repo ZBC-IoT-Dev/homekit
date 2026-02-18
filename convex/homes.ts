@@ -1,5 +1,37 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+
+const INVITE_CODE_LENGTH = 10;
+const INVITE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const JOIN_HOME_WINDOW_MS = 10 * 60 * 1000;
+const JOIN_HOME_MAX_ATTEMPTS = 20;
+const joinHomeAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function generateInviteCode(length = INVITE_CODE_LENGTH) {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  let code = "";
+  for (let i = 0; i < length; i += 1) {
+    code += INVITE_CODE_ALPHABET[bytes[i] % INVITE_CODE_ALPHABET.length];
+  }
+  return code;
+}
+
+function consumeJoinHomeRateLimit(subject: string) {
+  const now = Date.now();
+  const row = joinHomeAttempts.get(subject);
+  if (!row || row.resetAt <= now) {
+    joinHomeAttempts.set(subject, { count: 1, resetAt: now + JOIN_HOME_WINDOW_MS });
+    return false;
+  }
+  row.count += 1;
+  joinHomeAttempts.set(subject, row);
+  return row.count > JOIN_HOME_MAX_ATTEMPTS;
+}
+
+function clearJoinHomeRateLimit(subject: string) {
+  joinHomeAttempts.delete(subject);
+}
 
 // Update getHome to check membership
 export const getHome = query({
@@ -50,11 +82,24 @@ export const createHome = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      throw new ConvexError("Unauthorized");
     }
 
-    // specific random code generator
-    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    let inviteCode = "";
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = generateInviteCode();
+      const existing = await ctx.db
+        .query("homes")
+        .withIndex("by_invite_code", (q) => q.eq("inviteCode", candidate))
+        .first();
+      if (!existing) {
+        inviteCode = candidate;
+        break;
+      }
+    }
+    if (!inviteCode) {
+      throw new ConvexError("Could not allocate invite code");
+    }
 
     const homeId = await ctx.db.insert("homes", {
       name: args.name,
@@ -81,7 +126,11 @@ export const joinHome = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Unauthorized");
+      throw new ConvexError("Unauthorized");
+    }
+
+    if (consumeJoinHomeRateLimit(identity.subject)) {
+      throw new ConvexError("Too many join attempts. Please try again later.");
     }
 
     const home = await ctx.db
@@ -90,7 +139,7 @@ export const joinHome = mutation({
       .first();
 
     if (!home) {
-      throw new Error("Invalid invite code");
+      throw new ConvexError("Invalid invite code");
     }
 
     // Check if already a member
@@ -118,6 +167,7 @@ export const joinHome = mutation({
       role: "member",
     });
 
+    clearJoinHomeRateLimit(identity.subject);
     return home._id;
   },
 });

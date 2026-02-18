@@ -14,6 +14,7 @@ import type * as deviceTypes from "../deviceTypes.js";
 import type * as gateways from "../gateways.js";
 import type * as homes from "../homes.js";
 import type * as http from "../http.js";
+import type * as measurements from "../measurements.js";
 import type * as users from "../users.js";
 
 import type {
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   gateways: typeof gateways;
   homes: typeof homes;
   http: typeof http;
+  measurements: typeof measurements;
   users: typeof users;
 }>;
 

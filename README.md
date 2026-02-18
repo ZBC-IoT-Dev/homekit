@@ -1,36 +1,189 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HomeKit Web App (Next.js + Convex)
 
-## Getting Started
+This repository is the web dashboard for homes, gateways, devices, and automations.
 
-First, run the development server:
+It provides:
+
+- Authentication (Better Auth + GitHub OAuth)
+- Home creation/join via invite code
+- Gateway approval and monitoring
+- Device discovery + pairing
+- Live device control via gateway WebSocket
+- Automation engine with queued gateway commands
+
+## 1. Stack
+
+- Next.js 16 + React 19
+- Convex (database, queries, mutations, HTTP API)
+- Better Auth (via Convex component)
+- Tailwind CSS + UI components
+
+## 2. Prerequisites
+
+- Node.js 20+ (or Bun)
+- Convex CLI
+- GitHub OAuth app (for login)
+
+Install Convex CLI (if missing):
+
+```bash
+npm i -g convex
+```
+
+## 3. Install
+
+```bash
+cd homekit
+npm install
+```
+
+## 4. Environment Setup
+
+Copy `.env.example` to `.env.local` and fill values.
+
+Required keys:
+
+```bash
+# Convex
+CONVEX_DEPLOYMENT=
+NEXT_PUBLIC_CONVEX_URL=
+NEXT_PUBLIC_CONVEX_SITE_URL=
+
+# Next.js
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_HUB_WS_URL=ws://<gateway-ip>:8765/ws
+NEXT_PUBLIC_HUB_WS_HOST=<gateway-ip>
+NEXT_PUBLIC_HUB_WS_PATH=/ws
+NEXT_PUBLIC_HUB_WS_TOKEN=<same_token_as_gateway>
+
+# Better Auth
+BETTER_AUTH_SECRET=<long_random_secret>
+SITE_URL=http://localhost:3000
+GITHUB_CLIENT_ID=<oauth_client_id>
+GITHUB_CLIENT_SECRET=<oauth_client_secret>
+
+# Gateway request signing
+GATEWAY_SHARED_SECRET=<same_secret_as_gateway>
+```
+
+Important contract values:
+
+- `GATEWAY_SHARED_SECRET` must equal gateway `gateway_shared_secret`.
+- `NEXT_PUBLIC_HUB_WS_TOKEN` must equal gateway `websocket_auth_token` (if enabled).
+
+## 5. Run (Local)
+
+Start Convex dev server in one terminal:
+
+```bash
+npx convex dev
+```
+
+Start Next.js app in another terminal:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 6. How It Works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### User and home model
 
-## Learn More
+- Users authenticate with Better Auth.
+- A user creates a home or joins with invite code.
+- Home members have roles (`admin`/`member`).
 
-To learn more about Next.js, take a look at the following resources:
+### Gateway onboarding
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Gateway calls `POST /api/gateways/register` with invite code + signed headers.
+2. New gateway is created as `pending`.
+3. Admin approves in settings (`gateways.updateStatus` -> `active`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Device discovery
 
-## Deploy on Vercel
+1. Gateway forwards telemetry to `POST /api/devices`.
+2. Backend upserts device records (`pending` by default).
+3. UI shows pending devices in discovery dialog.
+4. Admin pairs device (sets status to `paired` + friendly name).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Device control
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+UI sends command over WebSocket directly to gateway (`lib/hub-websocket.ts`):
+
+```json
+{
+  "deviceId": "uno-r4-...",
+  "action": "light_fx_on",
+  "command": { "state": "ON", "fx": "ON" }
+}
+```
+
+Gateway publishes to MQTT topic `devices/<deviceId>/set`.
+
+### Automations
+
+- Automations are evaluated when new device data arrives.
+- Matching rules enqueue command rows in `gatewayCommands`.
+- Gateway polls `/api/gateways/commands` and publishes MQTT commands.
+- Gateway acknowledges with `/api/gateways/commands/ack`.
+
+## 7. API Endpoints (Convex HTTP)
+
+Defined in `convex/http.ts`:
+
+- `POST /api/gateways/register`
+- `POST /api/gateways/heartbeat`
+- `GET /api/gateways`
+- `POST /api/gateways/status`
+- `POST /api/devices`
+- `GET /api/gateways/devices`
+- `GET /api/gateways/commands`
+- `POST /api/gateways/commands/ack`
+- `GET /api/device-types`
+- `POST /api/device-types`
+
+Gateway-facing routes are HMAC signed using:
+
+- Header `X-Gateway-Timestamp`
+- Header `X-Gateway-Signature`
+
+## 8. Data Model Summary
+
+From `convex/schema.ts`:
+
+- `homes`, `home_members`
+- `gateways`
+- `devices`
+- `measurements` (history)
+- `automations`
+- `gatewayCommands`
+- `deviceTypes`
+- `categories`
+
+## 9. Common Dev Tasks
+
+```bash
+# lint
+npm run lint
+
+# build
+npm run build
+
+# production start
+npm run start
+```
+
+## 10. Troubleshooting
+
+- Login issues:
+  1. verify `SITE_URL` and GitHub OAuth callback URL
+  2. verify `BETTER_AUTH_SECRET` is set
+- Gateway requests returning 401:
+  1. secret mismatch (`GATEWAY_SHARED_SECRET`)
+  2. clock skew too high between gateway and server
+- WS control not working:
+  1. check `NEXT_PUBLIC_HUB_WS_URL`
+  2. check browser can reach gateway LAN IP/port 8765
+  3. check token mismatch (if token required)

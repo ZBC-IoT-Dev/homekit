@@ -98,7 +98,11 @@ export default defineSchema({
     gatewayIdentifier: v.string(),
     deviceIdentifier: v.string(),
     command: v.any(),
-    status: v.union(v.literal("pending"), v.literal("sent"), v.literal("failed")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("failed"),
+    ),
     error: v.optional(v.string()),
     automationId: v.optional(v.id("automations")),
     executeAfter: v.optional(v.number()),
@@ -107,4 +111,12 @@ export default defineSchema({
   })
     .index("by_gateway_and_status", ["gatewayIdentifier", "status"])
     .index("by_home", ["homeId"]),
+  measurements: defineTable({
+    deviceId: v.id("devices"),
+    type: v.string(), // "temp", "humidity", "motion", etc.
+    value: v.number(),
+    timestamp: v.number(),
+  })
+    .index("by_device_type_time", ["deviceId", "type", "timestamp"])
+    .index("by_device_time", ["deviceId", "timestamp"]),
 });

@@ -6,8 +6,116 @@ import { authComponent, createAuth } from "./betterAuth/auth";
 
 const http = httpRouter();
 
+const GATEWAY_REQUEST_MAX_SKEW_SECONDS = 300;
+const rateLimitState = new Map<string, { count: number; resetAt: number }>();
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
+}
+
+function jsonResponse(payload: unknown, status: number) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function getClientIp(request: Request) {
+  const xff = request.headers.get("x-forwarded-for") || "";
+  const first = xff.split(",")[0]?.trim();
+  return first || "unknown";
+}
+
+function consumeRateLimit(key: string, maxRequests: number, windowMs: number) {
+  const now = Date.now();
+  const row = rateLimitState.get(key);
+  if (!row || row.resetAt <= now) {
+    rateLimitState.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  row.count += 1;
+  rateLimitState.set(key, row);
+  return row.count > maxRequests;
+}
+
+function getGatewaySharedSecret() {
+  const secret = process.env.GATEWAY_SHARED_SECRET?.trim();
+  return secret && secret.length > 0 ? secret : null;
+}
+
+function timingSafeHexEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function hmacSha256Hex(secret: string, content: string) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(content),
+  );
+  return bytesToHex(new Uint8Array(signature));
+}
+
+async function verifyGatewayRequest(request: Request, rawBody: string) {
+  const secret = getGatewaySharedSecret();
+  if (!secret) {
+    return { ok: false, status: 503, error: "Gateway auth secret not configured" };
+  }
+
+  const signature = (request.headers.get("x-gateway-signature") || "").trim().toLowerCase();
+  const timestampRaw = (request.headers.get("x-gateway-timestamp") || "").trim();
+  if (!signature || !timestampRaw) {
+    return { ok: false, status: 401, error: "Missing gateway auth headers" };
+  }
+  if (!/^[0-9a-f]{64}$/.test(signature)) {
+    return { ok: false, status: 401, error: "Invalid gateway signature format" };
+  }
+
+  const timestamp = Number.parseInt(timestampRaw, 10);
+  if (!Number.isFinite(timestamp)) {
+    return { ok: false, status: 401, error: "Invalid gateway timestamp" };
+  }
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - timestamp) > GATEWAY_REQUEST_MAX_SKEW_SECONDS) {
+    return { ok: false, status: 401, error: "Gateway timestamp outside allowed window" };
+  }
+
+  const url = new URL(request.url);
+  const canonical = `${request.method.toUpperCase()}\n${url.pathname}${url.search}\n${timestamp}\n${rawBody}`;
+  const expectedSignature = await hmacSha256Hex(secret, canonical);
+  if (!timingSafeHexEqual(signature, expectedSignature)) {
+    return { ok: false, status: 401, error: "Invalid gateway signature" };
+  }
+  return { ok: true as const };
+}
+
+async function parseJsonBody<T>(request: Request): Promise<{ raw: string; parsed: T }> {
+  const raw = await request.text();
+  let parsed: T;
+  try {
+    parsed = JSON.parse(raw) as T;
+  } catch {
+    throw new Error("Invalid JSON payload");
+  }
+  return { raw, parsed };
 }
 
 authComponent.registerRoutes(http, createAuth);
@@ -17,24 +125,33 @@ http.route({
   path: "/api/gateways/register",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const { inviteCode, identifier, name, type } = await request.json();
+    const ip = getClientIp(request);
+    const rateLimitKey = `register:${ip}`;
+    if (consumeRateLimit(rateLimitKey, 40, 10 * 60 * 1000)) {
+      return jsonResponse({ error: "Too many register attempts" }, 429);
+    }
 
     try {
+      const { raw, parsed } = await parseJsonBody<{
+        inviteCode: string;
+        identifier: string;
+        name: string;
+        type?: string;
+      }>(request);
+      const authResult = await verifyGatewayRequest(request, raw);
+      if (!authResult.ok) {
+        return jsonResponse({ error: authResult.error }, authResult.status);
+      }
+
       const result = await ctx.runMutation(api.gateways.register, {
-        inviteCode,
-        identifier,
-        name,
-        type,
+        inviteCode: parsed.inviteCode,
+        identifier: parsed.identifier,
+        name: parsed.name,
+        type: parsed.type,
       });
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 400);
     }
   }),
 });
@@ -44,30 +161,24 @@ http.route({
   path: "/api/gateways/heartbeat",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const { identifier } = await request.json();
-
     try {
+      const { raw, parsed } = await parseJsonBody<{ identifier: string }>(request);
+      const authResult = await verifyGatewayRequest(request, raw);
+      if (!authResult.ok) {
+        return jsonResponse({ error: authResult.error }, authResult.status);
+      }
+
       const result = await ctx.runMutation(api.gateways.heartbeat, {
-        identifier,
+        identifier: parsed.identifier,
       });
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 400);
     }
   }),
 });
 
 // 3. List Gateways (Swift App / Dashboard)
-// Note: In a real app, you should pass a Bearer token.
-// For updated "simple" usage, we'll accept homeId query param.
-// The internal query checks for auth, so this will fail if no token is passed in header.
-// Swift App must send `Authorization: Bearer <token>`
 http.route({
   path: "/api/gateways",
   method: "GET",
@@ -77,29 +188,25 @@ http.route({
     const inviteCode = url.searchParams.get("inviteCode");
 
     if (!homeId && !inviteCode) {
-      return new Response(
-        JSON.stringify({ error: "Missing homeId or inviteCode" }),
-        {
-          status: 400,
-        },
-      );
+      return jsonResponse({ error: "Missing homeId or inviteCode" }, 400);
+    }
+
+    if (inviteCode) {
+      const ip = getClientIp(request);
+      const rateLimitKey = `list_gateways_invite:${ip}`;
+      if (consumeRateLimit(rateLimitKey, 60, 10 * 60 * 1000)) {
+        return jsonResponse({ error: "Too many invite code attempts" }, 429);
+      }
     }
 
     try {
-      // This will use the auth token from the request header automatically if present
       const result = await ctx.runQuery(api.gateways.get, {
         homeId: homeId ? (homeId as Id<"homes">) : undefined,
         inviteCode: inviteCode || undefined,
       });
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 401, // Likely unauthenticated or unauthorized
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 401);
     }
   }),
 });
@@ -116,15 +223,9 @@ http.route({
         gatewayId,
         status,
       });
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true }, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 400);
     }
   }),
 });
@@ -134,23 +235,28 @@ http.route({
   path: "/api/devices",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const { identifier, type, data, gatewayIdentifier } = await request.json();
-
-    // In a real app we would authenticate the gateway here.
-
     try {
+      const { raw, parsed } = await parseJsonBody<{
+        identifier: string;
+        type: string;
+        data?: unknown;
+        gatewayIdentifier: string;
+      }>(request);
+      const authResult = await verifyGatewayRequest(request, raw);
+      if (!authResult.ok) {
+        return jsonResponse({ error: authResult.error }, authResult.status);
+      }
+
       await ctx.runMutation(api.gateways.logDeviceData, {
-        identifier, // Device ID
-        type,
-        data,
-        gatewayIdentifier: gatewayIdentifier, // Gateway ID used for Home lookup
+        identifier: parsed.identifier,
+        type: parsed.type,
+        data: parsed.data,
+        gatewayIdentifier: parsed.gatewayIdentifier,
       });
 
-      return new Response(JSON.stringify({ success: true }), { status: 200 });
+      return jsonResponse({ success: true }, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 500,
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 500);
     }
   }),
 });
@@ -160,67 +266,53 @@ http.route({
   path: "/api/gateways/devices",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
+    const authResult = await verifyGatewayRequest(request, "");
+    if (!authResult.ok) {
+      return jsonResponse({ error: authResult.error }, authResult.status);
+    }
+
     const url = new URL(request.url);
     const gatewayIdentifier = url.searchParams.get("gatewayIdentifier");
 
     if (!gatewayIdentifier) {
-      return new Response(
-        JSON.stringify({ error: "Missing gatewayIdentifier query parameter" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      return jsonResponse({ error: "Missing gatewayIdentifier query parameter" }, 400);
     }
 
     try {
       const result = await ctx.runQuery(api.gateways.getGatewayPairedDevices, {
         gatewayIdentifier,
       });
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 500);
     }
   }),
 });
 
-// 7. List enabled device types (for product catalog in UI)
+// 7. Gateway command polling
 http.route({
   path: "/api/gateways/commands",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
+    const authResult = await verifyGatewayRequest(request, "");
+    if (!authResult.ok) {
+      return jsonResponse({ error: authResult.error }, authResult.status);
+    }
+
     const url = new URL(request.url);
     const gatewayIdentifier = url.searchParams.get("gatewayIdentifier");
 
     if (!gatewayIdentifier) {
-      return new Response(
-        JSON.stringify({ error: "Missing gatewayIdentifier query parameter" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      return jsonResponse({ error: "Missing gatewayIdentifier query parameter" }, 400);
     }
 
     try {
       const rows = await ctx.runQuery(api.automations.pollGatewayCommands, {
         gatewayIdentifier,
       });
-      return new Response(JSON.stringify(rows), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(rows, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 500);
     }
   }),
 });
@@ -229,30 +321,30 @@ http.route({
   path: "/api/gateways/commands/ack",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const { commandId, gatewayIdentifier, status, error } = await request.json();
-    if (status !== "sent" && status !== "failed") {
-      return new Response(JSON.stringify({ error: "Invalid status" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
     try {
+      const { raw, parsed } = await parseJsonBody<{
+        commandId: Id<"gatewayCommands">;
+        gatewayIdentifier: string;
+        status: "sent" | "failed";
+        error?: string;
+      }>(request);
+      const authResult = await verifyGatewayRequest(request, raw);
+      if (!authResult.ok) {
+        return jsonResponse({ error: authResult.error }, authResult.status);
+      }
+      if (parsed.status !== "sent" && parsed.status !== "failed") {
+        return jsonResponse({ error: "Invalid status" }, 400);
+      }
+
       const result = await ctx.runMutation(api.automations.ackGatewayCommand, {
-        commandId,
-        gatewayIdentifier,
-        status,
-        error,
+        commandId: parsed.commandId,
+        gatewayIdentifier: parsed.gatewayIdentifier,
+        status: parsed.status,
+        error: parsed.error,
       });
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 400);
     }
   }),
 });
@@ -264,15 +356,9 @@ http.route({
   handler: httpAction(async (ctx) => {
     try {
       const result = await ctx.runQuery(api.deviceTypes.listEnabled, {});
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 500);
     }
   }),
 });
@@ -295,15 +381,9 @@ http.route({
         features,
         enabled,
       });
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200);
     } catch (e: unknown) {
-      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: getErrorMessage(e) }, 400);
     }
   }),
 });

@@ -310,6 +310,64 @@ export const logDeviceData = mutation({
       });
     }
 
+    // 3. Log History (Measurements)
+    if (normalizedData && typeof normalizedData === "object") {
+      const record = normalizedData as Record<string, unknown>;
+      const timestamp = Date.now();
+      const deviceId =
+        existingDevice?._id ??
+        (
+          await ctx.db
+            .query("devices")
+            .withIndex("by_identifier", (q) =>
+              q.eq("identifier", args.identifier),
+            )
+            .first()
+        )?._id;
+
+      if (deviceId) {
+        // Define keys we want to track historically
+        const numericKeys = [
+          "temp",
+          "temperature",
+          "humid",
+          "humidity",
+          "co2",
+          "battery",
+        ];
+        const discreteKeys = ["motion", "occupancy"];
+
+        for (const [key, val] of Object.entries(record)) {
+          const normalizedKey = key.toLowerCase();
+
+          if (numericKeys.includes(normalizedKey) && typeof val === "number") {
+            await ctx.db.insert("measurements", {
+              deviceId,
+              type: normalizedKey === "temperature" ? "temp" : normalizedKey,
+              value: val,
+              timestamp,
+            });
+          } else if (discreteKeys.includes(normalizedKey)) {
+            let numVal = -1;
+            if (typeof val === "boolean") numVal = val ? 1 : 0;
+            if (val === "true" || val === "active" || val === "motion")
+              numVal = 1;
+            if (val === "false" || val === "inactive" || val === "clear")
+              numVal = 0;
+
+            if (numVal !== -1) {
+              await ctx.db.insert("measurements", {
+                deviceId,
+                type: normalizedKey,
+                value: numVal,
+                timestamp,
+              });
+            }
+          }
+        }
+      }
+    }
+
     try {
       await ctx.runMutation(api.automations.evaluateForDeviceUpdate, {
         homeId: gateway.homeId,
@@ -331,7 +389,7 @@ export const getHomeDevices = query({
     // Auth check optional if we assume component handles it, but better to be safe
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new ConvexError("Unauthenticated");
+      return [];
     }
 
     // Check membership
@@ -373,7 +431,9 @@ export const getGatewayPairedDevices = query({
   handler: async (ctx, args) => {
     const gateway = await ctx.db
       .query("gateways")
-      .withIndex("by_identifier", (q) => q.eq("identifier", args.gatewayIdentifier))
+      .withIndex("by_identifier", (q) =>
+        q.eq("identifier", args.gatewayIdentifier),
+      )
       .first();
 
     if (!gateway) {

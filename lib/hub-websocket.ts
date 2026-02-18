@@ -14,6 +14,17 @@ const DEFAULT_WS_PORT = "8765";
 const DEFAULT_WS_PATH = "/ws";
 const DEFAULT_TIMEOUT_MS = 4000;
 
+function requiresSecureWebSocket() {
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    return true;
+  }
+  return process.env.NODE_ENV === "production";
+}
+
+function getPreferredWsScheme() {
+  return requiresSecureWebSocket() ? "wss" : "ws";
+}
+
 function normalizePath(path: string) {
   if (!path) return DEFAULT_WS_PATH;
   return path.startsWith("/") ? path : `/${path}`;
@@ -25,24 +36,49 @@ function buildWsUrlFromHost(host: string) {
   if (trimmedHost.startsWith("ws://") || trimmedHost.startsWith("wss://")) {
     return trimmedHost;
   }
+  const scheme = getPreferredWsScheme();
   if (trimmedHost.includes("/")) {
-    return `ws://${trimmedHost}`;
+    return `${scheme}://${trimmedHost}`;
   }
   if (trimmedHost.includes(":")) {
-    return `ws://${trimmedHost}${DEFAULT_WS_PATH}`;
+    return `${scheme}://${trimmedHost}${DEFAULT_WS_PATH}`;
   }
-  return `ws://${trimmedHost}:${DEFAULT_WS_PORT}${DEFAULT_WS_PATH}`;
+  return `${scheme}://${trimmedHost}:${DEFAULT_WS_PORT}${DEFAULT_WS_PATH}`;
+}
+
+function appendWebSocketToken(url: string) {
+  const token = process.env.NEXT_PUBLIC_HUB_WS_TOKEN?.trim();
+  if (!token) {
+    return url;
+  }
+  const parsed = new URL(url);
+  parsed.searchParams.set("token", token);
+  return parsed.toString();
+}
+
+function assertSecureWebSocketUrl(url: string) {
+  if (!requiresSecureWebSocket()) {
+    return;
+  }
+  if (url.startsWith("ws://")) {
+    throw new Error("Refusing insecure ws:// control channel in secure context");
+  }
 }
 
 export function resolveHubWebSocketUrl() {
   const explicitUrl = process.env.NEXT_PUBLIC_HUB_WS_URL?.trim();
   if (explicitUrl) {
-    return explicitUrl;
+    const signedUrl = appendWebSocketToken(explicitUrl);
+    assertSecureWebSocketUrl(signedUrl);
+    return signedUrl;
   }
 
   const explicitHost = process.env.NEXT_PUBLIC_HUB_WS_HOST?.trim();
   if (explicitHost) {
-    return buildWsUrlFromHost(explicitHost);
+    const built = buildWsUrlFromHost(explicitHost);
+    const signedUrl = appendWebSocketToken(built);
+    assertSecureWebSocketUrl(signedUrl);
+    return signedUrl;
   }
 
   if (typeof window === "undefined") {
@@ -54,7 +90,10 @@ export function resolveHubWebSocketUrl() {
   const path = normalizePath(
     process.env.NEXT_PUBLIC_HUB_WS_PATH ?? DEFAULT_WS_PATH,
   );
-  return `${protocol}//${hostname}:${DEFAULT_WS_PORT}${path}`;
+  const built = `${protocol}//${hostname}:${DEFAULT_WS_PORT}${path}`;
+  const signedUrl = appendWebSocketToken(built);
+  assertSecureWebSocketUrl(signedUrl);
+  return signedUrl;
 }
 
 export async function sendHubWebSocketCommand(
