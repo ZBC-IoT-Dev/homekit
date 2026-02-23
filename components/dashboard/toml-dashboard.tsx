@@ -30,8 +30,16 @@ import {
   Trash2,
   AlertTriangle,
   GripVertical,
+  Lightbulb,
+  LightbulbOff,
+  Thermometer,
+  Droplets,
+  Activity,
+  Power,
 } from "lucide-react";
 import { sendHubWebSocketCommand } from "@/lib/hub-websocket";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Area,
   AreaChart,
@@ -375,16 +383,16 @@ function TomlChartPanel({
 
   if (data.length === 0) {
     return (
-      <div className="flex h-[220px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+      <div className="flex h-[220px] items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground bg-muted/30">
         Ingen målinger endnu
       </div>
     );
   }
 
   return (
-    <div className="h-[220px] w-full">
+    <div className="h-[200px] w-full mt-4 -ml-2 -mr-2">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data}>
+        <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient
               id={`fill_${device._id}_${metric}`}
@@ -394,30 +402,40 @@ function TomlChartPanel({
               y2="1"
             >
               <stop
-                offset="5%"
-                stopColor="hsl(var(--chart-2))"
-                stopOpacity={0.32}
+                offset="0%"
+                stopColor="hsl(var(--chart-1))"
+                stopOpacity={0.2}
               />
               <stop
-                offset="95%"
-                stopColor="hsl(var(--chart-2))"
+                offset="100%"
+                stopColor="hsl(var(--chart-1))"
                 stopOpacity={0}
               />
             </linearGradient>
           </defs>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
+          <CartesianGrid vertical={false} strokeDasharray="4 4" opacity={0.1} />
           <XAxis
             dataKey="time"
             tickLine={false}
             axisLine={false}
-            minTickGap={24}
+            minTickGap={32}
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={(value) =>
               format(new Date(value), "HH:mm", { locale: da })
             }
           />
-          <YAxis tickLine={false} axisLine={false} width={36} />
+          <YAxis 
+            tickLine={false} 
+            axisLine={false} 
+            width={36} 
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            domain={['auto', 'auto']}
+          />
           <Tooltip
-            formatter={(value) => [String(value), metric]}
+            contentStyle={{ borderRadius: "0.75rem", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-md)", backgroundColor: "hsl(var(--background))" }}
+            itemStyle={{ color: "hsl(var(--foreground))", fontSize: "13px", fontWeight: 500 }}
+            formatter={(value) => [`${value}`, '']}
+            labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: "11px", marginBottom: "4px" }}
             labelFormatter={(value) =>
               format(new Date(value), "d. MMM HH:mm", { locale: da })
             }
@@ -425,9 +443,10 @@ function TomlChartPanel({
           <Area
             dataKey="value"
             type="monotone"
-            stroke="hsl(var(--chart-2))"
+            stroke="hsl(var(--chart-1))"
             fill={`url(#fill_${device._id}_${metric})`}
-            strokeWidth={2}
+            strokeWidth={2.5}
+            activeDot={{ r: 5, fill: "hsl(var(--chart-1))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -472,10 +491,9 @@ function DashboardTomlCard({
       return (
         <div
           key={key}
-          className="rounded-md border border-dashed p-3 text-sm text-muted-foreground"
+          className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground h-[100px] flex items-center bg-muted/30"
         >
-          Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller
-          eksakt navn)
+          Enhed ikke fundet: {deviceQuery || "(tom)"}
         </div>
       );
     }
@@ -484,35 +502,59 @@ function DashboardTomlCard({
     const isLoading = loadingKeys.has(key);
 
     return (
-      <div key={key} className="rounded-md border bg-card p-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-medium">
-              {label || device.name || device.identifier}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {device.isOnline ? "Online" : "Offline"}
-            </p>
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        key={key}
+        disabled={isLoading}
+        onClick={() => {
+          if (!isLoading) {
+            void onToggle({
+              device,
+              desiredState: !state,
+              key,
+              onAction,
+              offAction,
+              label: label || device.name || device.identifier,
+            });
+          }
+        }}
+        className={cn(
+          "relative flex h-[100px] flex-col justify-between overflow-hidden rounded-2xl p-4 text-left transition-colors duration-300 outline-none",
+          state
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "bg-muted/40 text-foreground hover:bg-muted/60"
+        )}
+      >
+        <div className="flex items-start justify-between w-full">
+          <div
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-300",
+              state ? "bg-primary-foreground/20" : "bg-background shadow-xs"
+            )}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : state ? (
+              <Power className="h-4 w-4" />
+            ) : (
+              <Power className="h-4 w-4 text-muted-foreground" />
+            )}
           </div>
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          ) : (
-            <Switch
-              checked={state}
-              onCheckedChange={(next) => {
-                void onToggle({
-                  device,
-                  desiredState: next,
-                  key,
-                  onAction,
-                  offAction,
-                  label: label || device.name || device.identifier,
-                });
-              }}
-            />
-          )}
         </div>
-      </div>
+        <div>
+          <p className="font-semibold leading-none text-[15px] truncate pr-2">
+            {label || device.name || device.identifier}
+          </p>
+          <p
+            className={cn(
+              "mt-1.5 text-[13px] font-medium tracking-wide",
+              state ? "text-primary-foreground/80" : "text-muted-foreground"
+            )}
+          >
+            {state ? "Tændt" : "Slukket"}
+          </p>
+        </div>
+      </motion.button>
     );
   };
 
@@ -528,24 +570,36 @@ function DashboardTomlCard({
       return (
         <div
           key={key}
-          className="rounded-md border border-dashed p-3 text-sm text-muted-foreground"
+          className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground h-[100px] flex items-center bg-muted/30"
         >
-          Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller
-          eksakt navn)
+          Enhed ikke fundet: {deviceQuery || "(tom)"}
         </div>
       );
     }
 
     const value = readSensorValue(device, field || "temp");
+    
+    const fieldName = (field || "temp").toLowerCase();
+    let Icon = Activity;
+    if (fieldName.includes("temp")) Icon = Thermometer;
+    else if (fieldName.includes("hum") || fieldName.includes("fugt")) Icon = Droplets;
+
     return (
-      <div key={key} className="rounded-md border bg-card p-3">
-        <p className="text-xs text-muted-foreground">
-          {label || field || "Sensor"}
-        </p>
-        <p className="text-lg font-semibold tabular-nums">
-          {value}
-          {unit ? ` ${unit}` : ""}
-        </p>
+      <div key={key} className="flex h-[100px] flex-col justify-between rounded-2xl bg-muted/30 p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-background shadow-xs">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-[13px] font-medium text-muted-foreground truncate max-w-[80px]">
+            {label || field || "Sensor"}
+          </p>
+        </div>
+        <div className="flex items-baseline gap-1">
+          <p className="text-2xl font-semibold tabular-nums tracking-tight">
+            {value}
+          </p>
+          {unit && <span className="text-sm font-medium text-muted-foreground">{unit}</span>}
+        </div>
       </div>
     );
   };
@@ -575,21 +629,20 @@ function DashboardTomlCard({
   };
 
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3">
+    <Card className="h-full flex flex-col group/card relative overflow-hidden transition-shadow duration-200 hover:shadow-md">
+      <CardHeader className="pb-3 pt-5 px-5">
         <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="text-base">{parsed.card.title}</CardTitle>
+          <div className="space-y-0.5">
+            <CardTitle className="text-[17px] font-semibold tracking-tight">{parsed.card.title}</CardTitle>
             {parsed.card.subtitle ? (
-              <CardDescription>{parsed.card.subtitle}</CardDescription>
+              <CardDescription className="text-[13px]">{parsed.card.subtitle}</CardDescription>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">{parsed.card.type}</Badge>
+          <div className="flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200">
             <Button
               size="icon"
               variant="ghost"
-              className="cursor-grab active:cursor-grabbing"
+              className="h-8 w-8 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground hover:bg-muted/50"
               aria-label="Træk kort"
             >
               <GripVertical className="h-4 w-4" />
@@ -597,6 +650,7 @@ function DashboardTomlCard({
             <Button
               size="icon"
               variant="ghost"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
               onClick={onEdit}
               aria-label="Rediger kort"
             >
@@ -605,6 +659,7 @@ function DashboardTomlCard({
             <Button
               size="icon"
               variant="ghost"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               onClick={onDelete}
               aria-label="Slet kort"
             >
@@ -613,7 +668,7 @@ function DashboardTomlCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 px-5 pb-5">
         {parsed.card.type === "grid" ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {parsed.items.map((item, index) => {
@@ -854,52 +909,69 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">Oversigt</h1>
-        <Button onClick={addCard} className="gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1 mb-2">
+        <h1 className="text-3xl font-bold tracking-tight">Oversigt</h1>
+        <Button onClick={addCard} className="gap-2 rounded-full shadow-sm hover:shadow-md transition-shadow">
           <Plus className="h-4 w-4" />
           Tilføj kort
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <AnimatePresence mode="popLayout">
         {parsedCards.length === 0 ? (
-          <Card className="col-span-full border-dashed">
-            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <p className="text-sm text-muted-foreground">Ingen kort endnu</p>
-              <Button onClick={addCard} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Opret første kort
-              </Button>
-            </CardContent>
-          </Card>
+          <motion.div
+            layout
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="col-span-full"
+          >
+            <Card className="border-dashed bg-transparent shadow-none">
+              <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+                <p className="text-sm text-muted-foreground">Ingen kort endnu</p>
+                <Button onClick={addCard} className="gap-2 rounded-full">
+                  <Plus className="h-4 w-4" />
+                  Opret første kort
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
         ) : (
           parsedCards.map((card) => {
             if (!card.parsed.ok) {
               return (
-                <Card
+                <motion.div
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   key={card.id}
-                  className="lg:col-span-3 border-destructive/50"
+                  className="lg:col-span-3"
                 >
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">Ugyldig TOML</CardTitle>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openEditor(card.id)}
-                      >
-                        Ret kort
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-destructive">
-                      <AlertTriangle className="h-4 w-4" />
-                      {card.parsed.error}
-                    </div>
-                  </CardContent>
-                </Card>
+                  <Card className="border-destructive/30 bg-destructive/5 shadow-sm">
+                    <CardHeader className="pb-3 pt-5 px-5">
+                      <div className="flex items-center justify-between gap-2">
+                        <CardTitle className="text-[17px] font-semibold tracking-tight text-destructive">Ugyldig TOML</CardTitle>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => openEditor(card.id)}
+                        >
+                          Ret kort
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2 px-5 pb-5">
+                      <div className="flex items-start gap-2 text-[13px] text-destructive/80">
+                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span className="leading-snug">{card.parsed.error}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               );
             }
 
@@ -907,9 +979,14 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
             const isDragOver =
               dragOverCardId === card.id && draggingCardId !== card.id;
             return (
-              <div
+              <motion.div
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 key={card.id}
-                className={`${colClass} ${isDragOver ? "rounded-md ring-2 ring-primary/60" : ""}`}
+                className={`${colClass} ${isDragOver ? "rounded-[1.25rem] ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
                 draggable
                 onDragStart={() => {
                   setDraggingCardId(card.id);
@@ -940,10 +1017,11 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
                   loadingKeys={loadingKeys}
                   cardId={card.id}
                 />
-              </div>
+              </motion.div>
             );
           })
         )}
+        </AnimatePresence>
       </div>
 
       <Sheet
