@@ -1,5 +1,6 @@
 type HubWebSocketPayload = {
   deviceId: string;
+  commandId?: string;
   action?: string;
   command?: Record<string, unknown>;
   [key: string]: unknown;
@@ -8,6 +9,7 @@ type HubWebSocketPayload = {
 type HubCommandResult = {
   status: "sent" | "failed";
   error?: string;
+  commandId: string;
 };
 
 const DEFAULT_WS_PORT = "8765";
@@ -65,6 +67,28 @@ function assertSecureWebSocketUrl(url: string) {
   }
 }
 
+function createCommandId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function parseCommandResultMessage(data: unknown) {
+  if (typeof data !== "string") {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(data) as Record<string, unknown>;
+    if (parsed.type !== "command_result") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function resolveHubWebSocketUrl() {
   const explicitUrl = process.env.NEXT_PUBLIC_HUB_WS_URL?.trim();
   if (explicitUrl) {
@@ -107,6 +131,13 @@ export async function sendHubWebSocketCommand(
 
   return await new Promise<HubCommandResult>((resolve, reject) => {
     const socket = new WebSocket(wsUrl);
+    const commandId = payload.commandId?.trim() || createCommandId();
+    const commandPayload: HubWebSocketPayload = {
+      ...payload,
+      commandId,
+    };
+    let settled = false;
+    let opened = false;
 
     const cleanup = () => {
       clearTimeout(timeoutId);
@@ -117,53 +148,84 @@ export async function sendHubWebSocketCommand(
     };
 
     const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
       cleanup();
       try {
         socket.close();
       } catch {
         // ignore
       }
-      reject(new Error("WebSocket command timed out"));
+      reject(
+        new Error(
+          `WebSocket command timed out (${wsUrl}). Check relay/gateway connectivity.`,
+        ),
+      );
     }, timeoutMs);
 
     socket.onopen = () => {
-      socket.send(JSON.stringify(payload));
+      opened = true;
+      socket.send(JSON.stringify(commandPayload));
     };
 
     socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(String(event.data)) as Record<string, unknown>;
-        if (message.type !== "command_result") {
-          return;
-        }
-
-        cleanup();
-        try {
-          socket.close();
-        } catch {
-          // ignore
-        }
-
-        const resultStatus = message.status;
-        const status: HubCommandResult["status"] =
-          resultStatus === "sent" ? "sent" : "failed";
-        const error =
-          typeof message.error === "string" && message.error.trim().length > 0
-            ? message.error
-            : undefined;
-        resolve({ status, error });
-      } catch {
-        // Ignore non-JSON messages.
+      const message = parseCommandResultMessage(event.data);
+      if (!message || settled) {
+        return;
       }
+
+      const incomingCommandId =
+        typeof message.commandId === "string" ? message.commandId : "";
+      if (incomingCommandId && incomingCommandId !== commandId) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      try {
+        socket.close();
+      } catch {
+        // ignore
+      }
+
+      const resultStatus = message.status;
+      const status: HubCommandResult["status"] =
+        resultStatus === "sent" ? "sent" : "failed";
+      const error =
+        typeof message.error === "string" && message.error.trim().length > 0
+          ? message.error
+          : undefined;
+      resolve({ status, error, commandId });
     };
 
     socket.onerror = () => {
+      if (settled) return;
+      settled = true;
       cleanup();
-      reject(new Error("WebSocket connection error"));
+      reject(
+        new Error(
+          `WebSocket connection error (${wsUrl}). Ensure the WS relay is running and URL/token are correct.`,
+        ),
+      );
     };
 
     socket.onclose = () => {
+      if (settled) return;
+      settled = true;
       cleanup();
+      if (!opened) {
+        reject(
+          new Error(
+            `WebSocket connection closed before command was sent (${wsUrl})`,
+          ),
+        );
+      } else {
+        reject(
+          new Error(
+            `WebSocket closed before command result was received (${wsUrl})`,
+          ),
+        );
+      }
     };
   });
 }

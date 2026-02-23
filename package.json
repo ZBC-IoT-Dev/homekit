@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "ws": "bun run wss.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",

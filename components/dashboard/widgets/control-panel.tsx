@@ -66,9 +66,8 @@ export function ControlPanel({ devices }: ControlPanelProps) {
         throw new Error(result.error || "Command failed");
       }
       toast.success(`${device.name} ${newState ? "tændt" : "slukket"}`);
-    } catch (e) {
+    } catch {
       toast.error("Kunne ikke skifte status");
-      console.error(e);
     } finally {
       setLoadingIds((prev) => {
         const next = new Set(prev);
@@ -127,7 +126,6 @@ export function ControlPanel({ devices }: ControlPanelProps) {
                   <Switch
                     checked={isOn}
                     onCheckedChange={() => toggleLight(device, isOn)}
-                    disabled={!device.isOnline}
                   />
                 )}
               </div>
