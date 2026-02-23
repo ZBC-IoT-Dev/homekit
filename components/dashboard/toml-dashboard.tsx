@@ -5,7 +5,13 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
@@ -17,7 +23,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Trash2, AlertTriangle, GripVertical } from "lucide-react";
+import {
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  GripVertical,
+} from "lucide-react";
 import { sendHubWebSocketCommand } from "@/lib/hub-websocket";
 import {
   Area,
@@ -65,26 +78,6 @@ type TomlCard = {
     col_span: number;
     row_span: number;
   };
-  toggle?: {
-    device?: string;
-    device_id?: string;
-    label?: string;
-    on_action?: string;
-    off_action?: string;
-  };
-  sensor?: {
-    device?: string;
-    device_id?: string;
-    field?: string;
-    label?: string;
-    unit?: string;
-  };
-  chart?: {
-    device?: string;
-    device_id?: string;
-    metric?: string;
-    duration_hours?: number;
-  };
   items: Array<{
     type: ItemType;
     device?: string;
@@ -99,16 +92,17 @@ type TomlCard = {
   }>;
 };
 
-type ParseResult =
-  | { ok: true; data: TomlCard }
-  | { ok: false; error: string };
+type ParseResult = { ok: true; data: TomlCard } | { ok: false; error: string };
 
 const EMPTY_CARD_TEMPLATE = `[card]\ntitle = "Nyt Kort"\nsubtitle = "Rediger med TOML"\ntype = "grid"\ncol_span = 3\nrow_span = 1\n\n[[item]]\ntype = "toggle"\ndevice_id = "stue_lampe_id"\nlabel = "Stue"\non_action = "light_fx_on"\noff_action = "light_fx_off"\n\n[[item]]\ntype = "sensor"\ndevice_id = "stue_sensor_id"\nfield = "temp"\nlabel = "Temperatur"\nunit = "°C"\n`;
 
 const DEFAULT_CARDS: DashboardCard[] = [];
 
 function createId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `card_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -117,7 +111,10 @@ function createId() {
 function parseTomlValue(raw: string): string | number | boolean | string[] {
   const value = raw.trim();
 
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
     return value.slice(1, -1);
   }
 
@@ -135,7 +132,10 @@ function parseTomlValue(raw: string): string | number | boolean | string[] {
       .split(",")
       .map((part) => part.trim())
       .map((part) => {
-        if ((part.startsWith('"') && part.endsWith('"')) || (part.startsWith("'") && part.endsWith("'"))) {
+        if (
+          (part.startsWith('"') && part.endsWith('"')) ||
+          (part.startsWith("'") && part.endsWith("'"))
+        ) {
           return part.slice(1, -1);
         }
         return part;
@@ -154,19 +154,13 @@ function ensureInteger(input: unknown, fallback: number) {
 function parseCardToml(toml: string): ParseResult {
   const root: {
     card: Record<string, unknown>;
-    toggle: Record<string, unknown>;
-    sensor: Record<string, unknown>;
-    chart: Record<string, unknown>;
     items: Array<Record<string, unknown>>;
   } = {
     card: {},
-    toggle: {},
-    sensor: {},
-    chart: {},
     items: [],
   };
 
-  let section: "card" | "toggle" | "sensor" | "chart" | "item" = "card";
+  let section: "card" | "item" = "card";
 
   const lines = toml.split(/\r?\n/);
   for (let i = 0; i < lines.length; i += 1) {
@@ -181,7 +175,10 @@ function parseCardToml(toml: string): ParseResult {
     if (arraySectionMatch) {
       const sectionName = arraySectionMatch[1]?.toLowerCase();
       if (sectionName !== "item" && sectionName !== "items") {
-        return { ok: false, error: `Linje ${i + 1}: Ukendt array-sektion [[${sectionName}]]` };
+        return {
+          ok: false,
+          error: `Linje ${i + 1}: Ukendt array-sektion [[${sectionName}]]`,
+        };
       }
       root.items.push({});
       section = "item";
@@ -191,10 +188,23 @@ function parseCardToml(toml: string): ParseResult {
     const sectionMatch = line.match(/^\[(\w+)\]$/);
     if (sectionMatch) {
       const sectionName = sectionMatch[1]?.toLowerCase();
-      if (sectionName !== "card" && sectionName !== "toggle" && sectionName !== "sensor" && sectionName !== "chart") {
-        return { ok: false, error: `Linje ${i + 1}: Ukendt sektion [${sectionName}]` };
+      if (
+        sectionName !== "card" &&
+        sectionName !== "toggle" &&
+        sectionName !== "sensor" &&
+        sectionName !== "chart"
+      ) {
+        return {
+          ok: false,
+          error: `Linje ${i + 1}: Ukendt sektion [${sectionName}]`,
+        };
       }
-      section = sectionName;
+      if (sectionName !== "card") {
+        root.items.push({ type: sectionName });
+        section = "item";
+      } else {
+        section = "card";
+      }
       continue;
     }
 
@@ -214,12 +224,17 @@ function parseCardToml(toml: string): ParseResult {
       continue;
     }
 
-    root[section][key] = value;
+    if (section === "card") {
+      root.card[key] = value;
+    }
   }
 
   const type = String(root.card.type ?? "grid").toLowerCase() as CardType;
   if (!["grid", "toggle", "sensor", "chart"].includes(type)) {
-    return { ok: false, error: "[card].type skal være grid, toggle, sensor eller chart" };
+    return {
+      ok: false,
+      error: "[card].type skal være grid, toggle, sensor eller chart",
+    };
   }
 
   const parsed: TomlCard = {
@@ -229,26 +244,6 @@ function parseCardToml(toml: string): ParseResult {
       type,
       col_span: ensureInteger(root.card.col_span, 3),
       row_span: ensureInteger(root.card.row_span, 1),
-    },
-    toggle: {
-      device: root.toggle.device ? String(root.toggle.device) : undefined,
-      device_id: root.toggle.device_id ? String(root.toggle.device_id) : undefined,
-      label: root.toggle.label ? String(root.toggle.label) : undefined,
-      on_action: root.toggle.on_action ? String(root.toggle.on_action) : undefined,
-      off_action: root.toggle.off_action ? String(root.toggle.off_action) : undefined,
-    },
-    sensor: {
-      device: root.sensor.device ? String(root.sensor.device) : undefined,
-      device_id: root.sensor.device_id ? String(root.sensor.device_id) : undefined,
-      field: root.sensor.field ? String(root.sensor.field) : undefined,
-      label: root.sensor.label ? String(root.sensor.label) : undefined,
-      unit: root.sensor.unit ? String(root.sensor.unit) : undefined,
-    },
-    chart: {
-      device: root.chart.device ? String(root.chart.device) : undefined,
-      device_id: root.chart.device_id ? String(root.chart.device_id) : undefined,
-      metric: root.chart.metric ? String(root.chart.metric) : undefined,
-      duration_hours: ensureInteger(root.chart.duration_hours, 24),
     },
     items: root.items.map((item) => ({
       type: String(item.type ?? "sensor").toLowerCase() as ItemType,
@@ -266,20 +261,21 @@ function parseCardToml(toml: string): ParseResult {
 
   if (parsed.card.type === "grid") {
     if (parsed.items.length === 0) {
-      return { ok: false, error: "Grid-kort kræver mindst ét [[item]]" };
+      return {
+        ok: false,
+        error: "Grid-kort kræver mindst ét item eller sektion",
+      };
     }
-  }
-
-  if (parsed.card.type === "toggle" && !parsed.toggle?.device_id && !parsed.toggle?.device) {
-    return { ok: false, error: "Toggle-kort kræver [toggle].device_id (eller device)" };
-  }
-
-  if (parsed.card.type === "sensor" && !parsed.sensor?.device_id && !parsed.sensor?.device) {
-    return { ok: false, error: "Sensor-kort kræver [sensor].device_id (eller device)" };
-  }
-
-  if (parsed.card.type === "chart" && !parsed.chart?.device_id && !parsed.chart?.device) {
-    return { ok: false, error: "Chart-kort kræver [chart].device_id (eller device)" };
+  } else {
+    const hasItem = parsed.items.some(
+      (i) => i.type === parsed.card.type && (i.device_id || i.device),
+    );
+    if (!hasItem) {
+      return {
+        ok: false,
+        error: `${parsed.card.type}-kort kræver mindst én [${parsed.card.type}] sektion med device_id (eller device)`,
+      };
+    }
   }
 
   return { ok: true, data: parsed };
@@ -292,10 +288,14 @@ function normalize(value: string) {
 function findDevice(devices: DashboardDevice[], query?: string) {
   if (!query) return null;
   const wanted = normalize(query);
-  const byIdentifier = devices.find((device) => normalize(device.identifier) === wanted);
+  const byIdentifier = devices.find(
+    (device) => normalize(device.identifier) === wanted,
+  );
   if (byIdentifier) return byIdentifier;
 
-  const byName = devices.find((device) => normalize(device.name ?? "") === wanted);
+  const byName = devices.find(
+    (device) => normalize(device.name ?? "") === wanted,
+  );
   if (byName) return byName;
 
   return null;
@@ -386,9 +386,23 @@ function TomlChartPanel({
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data}>
           <defs>
-            <linearGradient id={`fill_${device._id}_${metric}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.32} />
-              <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
+            <linearGradient
+              id={`fill_${device._id}_${metric}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop
+                offset="5%"
+                stopColor="hsl(var(--chart-2))"
+                stopOpacity={0.32}
+              />
+              <stop
+                offset="95%"
+                stopColor="hsl(var(--chart-2))"
+                stopOpacity={0}
+              />
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.3} />
@@ -397,12 +411,16 @@ function TomlChartPanel({
             tickLine={false}
             axisLine={false}
             minTickGap={24}
-            tickFormatter={(value) => format(new Date(value), "HH:mm", { locale: da })}
+            tickFormatter={(value) =>
+              format(new Date(value), "HH:mm", { locale: da })
+            }
           />
           <YAxis tickLine={false} axisLine={false} width={36} />
           <Tooltip
             formatter={(value) => [String(value), metric]}
-            labelFormatter={(value) => format(new Date(value), "d. MMM HH:mm", { locale: da })}
+            labelFormatter={(value) =>
+              format(new Date(value), "d. MMM HH:mm", { locale: da })
+            }
           />
           <Area
             dataKey="value"
@@ -452,8 +470,12 @@ function DashboardTomlCard({
 
     if (!device) {
       return (
-        <div key={key} className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-          Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller eksakt navn)
+        <div
+          key={key}
+          className="rounded-md border border-dashed p-3 text-sm text-muted-foreground"
+        >
+          Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller
+          eksakt navn)
         </div>
       );
     }
@@ -465,8 +487,12 @@ function DashboardTomlCard({
       <div key={key} className="rounded-md border bg-card p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-medium">{label || device.name || device.identifier}</p>
-            <p className="text-xs text-muted-foreground">{device.isOnline ? "Online" : "Offline"}</p>
+            <p className="text-sm font-medium">
+              {label || device.name || device.identifier}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {device.isOnline ? "Online" : "Offline"}
+            </p>
           </div>
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -500,8 +526,12 @@ function DashboardTomlCard({
     const device = findDevice(devices, deviceQuery);
     if (!device) {
       return (
-        <div key={key} className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-          Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller eksakt navn)
+        <div
+          key={key}
+          className="rounded-md border border-dashed p-3 text-sm text-muted-foreground"
+        >
+          Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller
+          eksakt navn)
         </div>
       );
     }
@@ -509,7 +539,9 @@ function DashboardTomlCard({
     const value = readSensorValue(device, field || "temp");
     return (
       <div key={key} className="rounded-md border bg-card p-3">
-        <p className="text-xs text-muted-foreground">{label || field || "Sensor"}</p>
+        <p className="text-xs text-muted-foreground">
+          {label || field || "Sensor"}
+        </p>
         <p className="text-lg font-semibold tabular-nums">
           {value}
           {unit ? ` ${unit}` : ""}
@@ -518,13 +550,28 @@ function DashboardTomlCard({
     );
   };
 
-  const renderChart = (deviceQuery: string | undefined, metric: string | undefined, durationHours: number | undefined) => {
+  const renderChart = (
+    deviceQuery: string | undefined,
+    metric: string | undefined,
+    durationHours: number | undefined,
+  ) => {
     const device = findDevice(devices, deviceQuery);
     if (!device) {
-      return <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller eksakt navn)</div>;
+      return (
+        <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+          Enhed ikke fundet: {deviceQuery || "(tom)"} (brug device_id eller
+          eksakt navn)
+        </div>
+      );
     }
 
-    return <TomlChartPanel device={device} metric={(metric || "temp").toLowerCase()} durationHours={durationHours ?? 24} />;
+    return (
+      <TomlChartPanel
+        device={device}
+        metric={(metric || "temp").toLowerCase()}
+        durationHours={durationHours ?? 24}
+      />
+    );
   };
 
   return (
@@ -533,17 +580,34 @@ function DashboardTomlCard({
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle className="text-base">{parsed.card.title}</CardTitle>
-            {parsed.card.subtitle ? <CardDescription>{parsed.card.subtitle}</CardDescription> : null}
+            {parsed.card.subtitle ? (
+              <CardDescription>{parsed.card.subtitle}</CardDescription>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{parsed.card.type}</Badge>
-            <Button size="icon" variant="ghost" className="cursor-grab active:cursor-grabbing" aria-label="Træk kort">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="cursor-grab active:cursor-grabbing"
+              aria-label="Træk kort"
+            >
               <GripVertical className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={onEdit} aria-label="Rediger kort">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onEdit}
+              aria-label="Rediger kort"
+            >
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Slet kort">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onDelete}
+              aria-label="Slet kort"
+            >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -555,43 +619,73 @@ function DashboardTomlCard({
             {parsed.items.map((item, index) => {
               const key = `${cardId}:item:${index}`;
               if (item.type === "toggle") {
-                return renderToggle(item.label || "Toggle", item.device_id || item.device, key, item.on_action, item.off_action);
+                return renderToggle(
+                  item.label || "Toggle",
+                  item.device_id || item.device,
+                  key,
+                  item.on_action,
+                  item.off_action,
+                );
               }
               if (item.type === "sensor") {
-                return renderSensor(item.label || "Sensor", item.device_id || item.device, item.field, item.unit, key);
+                return renderSensor(
+                  item.label || "Sensor",
+                  item.device_id || item.device,
+                  item.field,
+                  item.unit,
+                  key,
+                );
               }
-              return <div key={key}>{renderChart(item.device_id || item.device, item.metric, item.duration_hours)}</div>;
+              return (
+                <div key={key}>
+                  {renderChart(
+                    item.device_id || item.device,
+                    item.metric,
+                    item.duration_hours,
+                  )}
+                </div>
+              );
             })}
           </div>
         ) : null}
 
-        {parsed.card.type === "toggle"
-          ? renderToggle(
-              parsed.toggle?.label || "Toggle",
-              parsed.toggle?.device_id || parsed.toggle?.device,
-              `${cardId}:single-toggle`,
-              parsed.toggle?.on_action,
-              parsed.toggle?.off_action,
-            )
-          : null}
-
-        {parsed.card.type === "sensor"
-          ? renderSensor(
-              parsed.sensor?.label || "Sensor",
-              parsed.sensor?.device_id || parsed.sensor?.device,
-              parsed.sensor?.field,
-              parsed.sensor?.unit,
-              `${cardId}:single-sensor`,
-            )
-          : null}
-
-        {parsed.card.type === "chart"
-          ? renderChart(
-              parsed.chart?.device_id || parsed.chart?.device,
-              parsed.chart?.metric,
-              parsed.chart?.duration_hours,
-            )
-          : null}
+        {parsed.card.type !== "grid" && parsed.items.length > 0 ? (
+          <div className="flex flex-col gap-3 h-full">
+            {parsed.items.map((item, index) => {
+              const key = `${cardId}:item:${index}`;
+              if (item.type === "toggle") {
+                return renderToggle(
+                  item.label || "Toggle",
+                  item.device_id || item.device,
+                  key,
+                  item.on_action,
+                  item.off_action,
+                );
+              }
+              if (item.type === "sensor") {
+                return renderSensor(
+                  item.label || "Sensor",
+                  item.device_id || item.device,
+                  item.field,
+                  item.unit,
+                  key,
+                );
+              }
+              if (item.type === "chart") {
+                return (
+                  <div key={key} className="flex-1 min-h-[220px]">
+                    {renderChart(
+                      item.device_id || item.device,
+                      item.metric,
+                      item.duration_hours,
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -649,7 +743,10 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
     [cards],
   );
 
-  const editorValidation = useMemo(() => parseCardToml(editorToml), [editorToml]);
+  const editorValidation = useMemo(
+    () => parseCardToml(editorToml),
+    [editorToml],
+  );
 
   const openEditor = (cardId: string) => {
     const card = cards.find((entry) => entry.id === cardId);
@@ -673,7 +770,11 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
       return;
     }
 
-    setCards((prev) => prev.map((card) => (card.id === editingCardId ? { ...card, toml: editorToml } : card)));
+    setCards((prev) =>
+      prev.map((card) =>
+        card.id === editingCardId ? { ...card, toml: editorToml } : card,
+      ),
+    );
     toast.success("Kort opdateret");
     setEditingCardId(null);
   };
@@ -713,8 +814,8 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
     setLoadingKeys((prev) => new Set(prev).add(key));
 
     const action = desiredState
-      ? (onAction?.trim() || "light_fx_on")
-      : (offAction?.trim() || "light_fx_off");
+      ? onAction?.trim() || "light_fx_on"
+      : offAction?.trim() || "light_fx_off";
     const state = desiredState ? "ON" : "OFF";
 
     try {
@@ -776,11 +877,18 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
           parsedCards.map((card) => {
             if (!card.parsed.ok) {
               return (
-                <Card key={card.id} className="lg:col-span-3 border-destructive/50">
+                <Card
+                  key={card.id}
+                  className="lg:col-span-3 border-destructive/50"
+                >
                   <CardHeader>
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle className="text-base">Ugyldig TOML</CardTitle>
-                      <Button size="sm" variant="outline" onClick={() => openEditor(card.id)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEditor(card.id)}
+                      >
                         Ret kort
                       </Button>
                     </div>
@@ -796,7 +904,8 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
             }
 
             const colClass = resolveColClass(card.parsed.data.card.col_span);
-            const isDragOver = dragOverCardId === card.id && draggingCardId !== card.id;
+            const isDragOver =
+              dragOverCardId === card.id && draggingCardId !== card.id;
             return (
               <div
                 key={card.id}
@@ -837,7 +946,10 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
         )}
       </div>
 
-      <Sheet open={Boolean(editingCardId)} onOpenChange={(open) => !open && setEditingCardId(null)}>
+      <Sheet
+        open={Boolean(editingCardId)}
+        onOpenChange={(open) => !open && setEditingCardId(null)}
+      >
         <SheetContent side="right" className="w-[96vw] sm:max-w-2xl">
           <SheetHeader>
             <SheetTitle>TOML Kort Editor</SheetTitle>
@@ -853,7 +965,9 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
 
           <SheetFooter className="border-t">
             {!editorValidation.ok ? (
-              <p className="mr-auto text-xs text-destructive">{editorValidation.error}</p>
+              <p className="mr-auto text-xs text-destructive">
+                {editorValidation.error}
+              </p>
             ) : null}
             <Button variant="outline" onClick={() => setEditingCardId(null)}>
               Luk

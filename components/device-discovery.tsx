@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { getProduct, mergeProductsWithBackend } from "@/lib/products";
 import { middleTruncate } from "@/lib/utils";
 import Image from "next/image";
-import { Plus, Wifi, Info } from "lucide-react";
+import { Plus, Wifi, Info, X } from "lucide-react";
 
 type DiscoveryDevice = {
   _id: Id<"devices">;
@@ -45,6 +45,8 @@ export function DeviceDiscovery() {
   const [deviceName, setDeviceName] = useState("");
   const [isPairing, setIsPairing] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const prevPendingCountRef = useRef(0);
 
   const pendingDevices = devices?.filter((d) => d.status === "pending") || [];
   const productCatalog = useMemo(
@@ -55,9 +57,14 @@ export function DeviceDiscovery() {
   useEffect(() => {
     if (pendingDevices.length > 0) {
       setShowNotification(true);
+      if (pendingDevices.length > prevPendingCountRef.current) {
+        setIsDismissed(false);
+      }
     } else {
       setShowNotification(false);
+      setIsDismissed(false);
     }
+    prevPendingCountRef.current = pendingDevices.length;
   }, [pendingDevices.length]);
 
   const handlePair = async () => {
@@ -82,13 +89,24 @@ export function DeviceDiscovery() {
 
   return (
     <>
-      {showNotification && !pairingDevice && (
+      {showNotification && !pairingDevice && !isDismissed && (
         <Card className="fixed bottom-6 right-6 z-50 w-72 shadow-lg">
-          <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
-            <Wifi className="h-4 w-4 text-primary" />
-            <CardTitle className="text-sm font-medium">
-              Enhedsopdagelse
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center gap-2">
+              <Wifi className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium">
+                Enhedsopdagelse
+              </CardTitle>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="-mr-2 h-6 w-6 rounded-full"
+              onClick={() => setIsDismissed(true)}
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+              <span className="sr-only">Luk</span>
+            </Button>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex flex-col gap-2">
