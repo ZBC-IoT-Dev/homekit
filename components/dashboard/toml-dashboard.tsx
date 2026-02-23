@@ -102,7 +102,7 @@ type TomlCard = {
 
 type ParseResult = { ok: true; data: TomlCard } | { ok: false; error: string };
 
-const EMPTY_CARD_TEMPLATE = `[card]\ntitle = "Nyt Kort"\nsubtitle = "Rediger med TOML"\ntype = "grid"\ncol_span = 3\nrow_span = 1\n\n[[item]]\ntype = "toggle"\ndevice_id = "stue_lampe_id"\nlabel = "Stue"\non_action = "light_fx_on"\noff_action = "light_fx_off"\n\n[[item]]\ntype = "sensor"\ndevice_id = "stue_sensor_id"\nfield = "temp"\nlabel = "Temperatur"\nunit = "°C"\n`;
+const EMPTY_CARD_TEMPLATE = `[card]\ntitle = "Nyt Kort"\nsubtitle = "Rediger med TOML"\ntype = "grid"\ncol_span = 3\nrow_span = 2\n\n[[item]]\ntype = "toggle"\ndevice_id = "stue_lampe_id"\nlabel = "Stue"\non_action = "light_fx_on"\noff_action = "light_fx_off"\n\n[[item]]\ntype = "sensor"\ndevice_id = "stue_sensor_id"\nfield = "temp"\nlabel = "Temperatur"\nunit = "°C"\n`;
 
 const DEFAULT_CARDS: DashboardCard[] = [];
 
@@ -251,7 +251,7 @@ function parseCardToml(toml: string): ParseResult {
       subtitle: root.card.subtitle ? String(root.card.subtitle) : undefined,
       type,
       col_span: ensureInteger(root.card.col_span, 3),
-      row_span: ensureInteger(root.card.row_span, 1),
+      row_span: ensureInteger(root.card.row_span, 2),
     },
     items: root.items.map((item) => ({
       type: String(item.type ?? "sensor").toLowerCase() as ItemType,
@@ -352,6 +352,19 @@ function resolveColClass(colSpan: number) {
   return map[value];
 }
 
+function resolveRowClass(rowSpan: number) {
+  const value = Math.min(Math.max(rowSpan, 1), 6);
+  const map: Record<number, string> = {
+    1: "row-span-1",
+    2: "row-span-2",
+    3: "row-span-3",
+    4: "row-span-4",
+    5: "row-span-5",
+    6: "row-span-6",
+  };
+  return map[value];
+}
+
 function TomlChartPanel({
   device,
   metric,
@@ -375,7 +388,7 @@ function TomlChartPanel({
 
   if (history === undefined) {
     return (
-      <div className="flex h-[220px] items-center justify-center">
+      <div className="flex flex-1 min-h-[150px] items-center justify-center">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -383,14 +396,14 @@ function TomlChartPanel({
 
   if (data.length === 0) {
     return (
-      <div className="flex h-[220px] items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground bg-muted/30">
+      <div className="flex flex-1 min-h-[150px] items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground bg-muted/30">
         Ingen målinger endnu
       </div>
     );
   }
 
   return (
-    <div className="h-[200px] w-full mt-4 -ml-2 -mr-2">
+    <div className="flex-1 w-full mt-4 -ml-2 -mr-2 min-h-[150px]">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <defs>
@@ -429,12 +442,12 @@ function TomlChartPanel({
             axisLine={false} 
             width={36} 
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-            domain={['auto', 'auto']}
+            domain={['dataMin - 0.5', 'dataMax + 0.5']}
           />
           <Tooltip
             contentStyle={{ borderRadius: "0.75rem", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-md)", backgroundColor: "hsl(var(--background))" }}
             itemStyle={{ color: "hsl(var(--foreground))", fontSize: "13px", fontWeight: 500 }}
-            formatter={(value) => [`${value}`, '']}
+            formatter={(value) => [`${Number(value).toFixed(1)}`, '']}
             labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: "11px", marginBottom: "4px" }}
             labelFormatter={(value) =>
               format(new Date(value), "d. MMM HH:mm", { locale: da })
@@ -460,6 +473,7 @@ function DashboardTomlCard({
   onEdit,
   onDelete,
   onToggle,
+  onResize,
   loadingKeys,
   cardId,
 }: {
@@ -475,6 +489,7 @@ function DashboardTomlCard({
     offAction?: string;
     label: string;
   }) => Promise<void>;
+  onResize: (colSpan: number, rowSpan: number) => void;
   loadingKeys: Set<string>;
   cardId: string;
 }) {
@@ -519,7 +534,7 @@ function DashboardTomlCard({
           }
         }}
         className={cn(
-          "relative flex h-[100px] flex-col justify-between overflow-hidden rounded-2xl p-4 text-left transition-colors duration-300 outline-none",
+          "relative flex min-h-[100px] h-full flex-col justify-between overflow-hidden rounded-2xl p-4 text-left transition-colors duration-300 outline-none",
           state
             ? "bg-primary text-primary-foreground shadow-sm"
             : "bg-muted/40 text-foreground hover:bg-muted/60"
@@ -585,7 +600,7 @@ function DashboardTomlCard({
     else if (fieldName.includes("hum") || fieldName.includes("fugt")) Icon = Droplets;
 
     return (
-      <div key={key} className="flex h-[100px] flex-col justify-between rounded-2xl bg-muted/30 p-4">
+      <div key={key} className="flex min-h-[100px] h-full flex-col justify-between rounded-2xl bg-muted/30 p-4">
         <div className="flex items-start justify-between">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-background shadow-xs">
             <Icon className="h-4 w-4 text-muted-foreground" />
@@ -630,7 +645,10 @@ function DashboardTomlCard({
 
   return (
     <Card className="h-full flex flex-col group/card relative overflow-hidden transition-shadow duration-200 hover:shadow-md">
-      <CardHeader className="pb-3 pt-5 px-5">
+      <CardHeader className="pb-3 pt-5 px-5 cursor-grab active:cursor-grabbing" draggable
+                onDragStart={(e) => {
+                  e.preventDefault(); // allow outer container to drag
+                }}>
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5">
             <CardTitle className="text-[17px] font-semibold tracking-tight">{parsed.card.title}</CardTitle>
@@ -668,9 +686,9 @@ function DashboardTomlCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 px-5 pb-5">
+      <CardContent className="flex-1 px-5 pb-5 flex flex-col relative min-h-0 overflow-hidden">
         {parsed.card.type === "grid" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 flex-1">
             {parsed.items.map((item, index) => {
               const key = `${cardId}:item:${index}`;
               if (item.type === "toggle") {
@@ -705,7 +723,7 @@ function DashboardTomlCard({
         ) : null}
 
         {parsed.card.type !== "grid" && parsed.items.length > 0 ? (
-          <div className="flex flex-col gap-3 h-full">
+          <div className="flex flex-col gap-3 h-full flex-1">
             {parsed.items.map((item, index) => {
               const key = `${cardId}:item:${index}`;
               if (item.type === "toggle") {
@@ -741,7 +759,49 @@ function DashboardTomlCard({
             })}
           </div>
         ) : null}
-      </CardContent>
+        <div
+        className="absolute bottom-1 right-1 w-8 h-8 cursor-nwse-resize flex items-end justify-end p-2 opacity-0 group-hover/card:opacity-100 transition-opacity z-10"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const startX = e.clientX;
+          const startY = e.clientY;
+          const initialCol = parsed.card.col_span;
+          const initialRow = parsed.card.row_span;
+
+          const targetCard = (e.currentTarget as HTMLElement).closest(".group\\/card");
+          const cellW = targetCard ? targetCard.getBoundingClientRect().width / initialCol : 120;
+
+          const handlePointerMove = (ev: PointerEvent) => {
+            const deltaX = ev.clientX - startX;
+            const deltaY = ev.clientY - startY;
+            
+            const colDiff = Math.round(deltaX / cellW);
+            const rowDiff = Math.round(deltaY / 136);
+            
+            let newCol = Math.max(1, Math.min(7, initialCol + colDiff));
+            let newRow = Math.max(1, Math.min(6, initialRow + rowDiff));
+            
+            if (newCol !== parsed.card.col_span || newRow !== parsed.card.row_span) {
+               onResize(newCol, newRow);
+            }
+          };
+
+          const handlePointerUp = () => {
+            document.removeEventListener("pointermove", handlePointerMove);
+            document.removeEventListener("pointerup", handlePointerUp);
+          };
+
+          document.addEventListener("pointermove", handlePointerMove);
+          document.addEventListener("pointerup", handlePointerUp);
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-muted-foreground/40 hover:text-foreground transition-colors">
+           <path d="M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+           <path d="M9 5L5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      </div>
+    </CardContent>
     </Card>
   );
 }
@@ -834,6 +894,28 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
     setEditingCardId(null);
   };
 
+  const handleResizeCard = (cardId: string, newCol: number, newRow: number) => {
+    setCards((prev) =>
+      prev.map((card) => {
+        if (card.id === cardId) {
+          let updated = card.toml;
+          if (updated.match(/col_span\s*=\s*\d+/)) {
+            updated = updated.replace(/col_span\s*=\s*\d+/, `col_span = ${newCol}`);
+          } else {
+            updated = updated.replace(/\[card\]\n?/, `[card]\ncol_span = ${newCol}\n`);
+          }
+          if (updated.match(/row_span\s*=\s*\d+/)) {
+            updated = updated.replace(/row_span\s*=\s*\d+/, `row_span = ${newRow}`);
+          } else {
+            updated = updated.replace(/\[card\]\n?/, `[card]\nrow_span = ${newRow}\n`);
+          }
+          return { ...card, toml: updated };
+        }
+        return card;
+      })
+    );
+  };
+
   const removeCard = (cardId: string) => {
     setCards((prev) => prev.filter((card) => card.id !== cardId));
   };
@@ -917,7 +999,7 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 grid-flow-row-dense" style={{ gridAutoRows: '120px' }}>
         <AnimatePresence mode="popLayout">
         {parsedCards.length === 0 ? (
           <motion.div
@@ -976,6 +1058,7 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
             }
 
             const colClass = resolveColClass(card.parsed.data.card.col_span);
+            const rowClass = resolveRowClass(card.parsed.data.card.row_span);
             const isDragOver =
               dragOverCardId === card.id && draggingCardId !== card.id;
             return (
@@ -986,7 +1069,7 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
                 exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 key={card.id}
-                className={`${colClass} ${isDragOver ? "rounded-[1.25rem] ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
+                className={`${colClass} ${rowClass} ${isDragOver ? "rounded-[1.25rem] ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
                 draggable
                 onDragStart={() => {
                   setDraggingCardId(card.id);
@@ -1014,6 +1097,7 @@ export function TomlDashboard({ home }: { home: DashboardHome }) {
                   onEdit={() => openEditor(card.id)}
                   onDelete={() => removeCard(card.id)}
                   onToggle={handleToggle}
+                  onResize={(col, row) => handleResizeCard(card.id, col, row)}
                   loadingKeys={loadingKeys}
                   cardId={card.id}
                 />
